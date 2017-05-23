@@ -42,7 +42,7 @@ int main() {
 	float dt = 0.1f;
 
 	addDensity(densityPrev);
-	// drawDensity(densityPrev);
+	drawDensity(densityPrev);
 
 	for (int i = 1; i < 30; i++) {
 		std::cout << "i: " << i << std::endl;
