@@ -28,11 +28,10 @@ Image img(SIZE + 2, SIZE + 2);
 int main() {
 	//allocated data
 	float *density = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
-	float *densityPrev = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
-
 	float *velocityX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 	float *velocityY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
+	float *densityPrev = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 	float *velocityPrevX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 	float *velocityPrevY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
