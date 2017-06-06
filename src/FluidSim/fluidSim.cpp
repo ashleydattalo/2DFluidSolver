@@ -7,7 +7,7 @@
 #include "types.h"
 
 #define TIME 2000000
-#define SIZE 300
+#define SIZE 200
 #define START 1
 #define END SIZE + 1
 #define at(i,j) ((i) + (SIZE + 2)*(j))
@@ -22,7 +22,6 @@ void addForce(float *velocityX, float *velocityY, float forceX, float forceY);
 void addForceAwayFromCenter(float *velocityX, float *velocityY);
 
 void printArr(float *arr, std::string arrName);
-
 Image img(SIZE + 2, SIZE + 2);
 
 int main() {
@@ -43,8 +42,8 @@ int main() {
 	addDensity(densityPrev);
 	drawDensity(densityPrev);
 
-	for (int i = 1; i < 30; i++) {
-		std::cout << "i: " << i << std::endl;
+	for (int i = 1; i < 500; i++) {
+		// std::cout << "i: " << i << std::endl;
 
 		// addForce(velocityPrevX, velocityPrevY, 10.0f, 0.0f);
 		// addForceAwayFromCenter(velocityPrevX, velocityPrevY);
@@ -52,9 +51,10 @@ int main() {
 		vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
 		dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);
 
-		if (i % 10 == 0) {
-			drawDensity(density);
-		}
+
+		// printArr(density, "density");
+
+		
 		dt++;
 	}
 	drawDensity(density);
@@ -166,30 +166,38 @@ void vel_step ( int N, float * u, float * v, float * u0, float * v0, float visc,
 	advect ( N, 1, u, u0, u0, v0, dt ); advect ( N, 2, v, v0, u0, v0, dt ); project ( N, u, v, u0, v0 );
 }
 
+void addDensity(float *density) {
+    for (int i = 50; i < 150; i++) {
+        for (int j = 50; j < 150; j++) {
+            density[at(i, j)] = 1.0f;
+        }   
+    }
+}
+
 
 //adding sources to scene
-void addDensity(float *density) {
-	for (int i = 100; i < 250; i++) {
-		for (int j = 100; j < 250; j++) {
-			density[at(i, j)] = 1.0f;
-		}	
-	}
-	for (int i = 50; i < 60; i++) {
-		for (int j = 0; j < 30; j++) {
-			density[at(2+i, 70 + j)] = 1.0f;
-			density[at(3+i, 70 + j)] = 1.0f;
-			density[at(4+i, 70 + j)] = 1.0f;
-			density[at(3+i, 70 + j)] = 1.0f;
-			density[at(3+i, 70 + j)] = 1.0f;		
-		}
-	}
-	// density[at(5,5)] = 1.0f;
-	// density[at(3,5)] = 1.0f;
-	// density[at(4,5)] = 1.0f;
-	// density[at(5,3)] = 1.0f;
-	// density[at(5,4)] = 1.0f;
-	// density[at(5,5)] = 1.0f;
-}
+// void addDensity(float *density) {
+// 	for (int i = 100; i < 250; i++) {
+// 		for (int j = 100; j < 250; j++) {
+// 			density[at(i, j)] = 1.0f;
+// 		}	
+// 	}
+// 	for (int i = 50; i < 60; i++) {
+// 		for (int j = 0; j < 30; j++) {
+// 			density[at(2+i, 70 + j)] = 1.0f;
+// 			density[at(3+i, 70 + j)] = 1.0f;
+// 			density[at(4+i, 70 + j)] = 1.0f;
+// 			density[at(3+i, 70 + j)] = 1.0f;
+// 			density[at(3+i, 70 + j)] = 1.0f;		
+// 		}
+// 	}
+// 	// density[at(5,5)] = 1.0f;
+// 	// density[at(3,5)] = 1.0f;
+// 	// density[at(4,5)] = 1.0f;
+// 	// density[at(5,3)] = 1.0f;
+// 	// density[at(5,4)] = 1.0f;
+// 	// density[at(5,5)] = 1.0f;
+// }
 void addForce(float *velocityX, float *velocityY, float forceX, float forceY) {
 	for (int i = START; i < END; i++) {
 		for (int j = START; j < END; j++) {

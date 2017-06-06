@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(runThis)
 
 set(SOURCES
-    src/main.cpp
+    src/fluidSimMain3.cpp
     src/Classes/Shader.cpp
     src/Classes/Texture.cpp
     src/Particles/ParticleSystem.cpp
@@ -10,6 +10,7 @@ set(SOURCES
     src/MarchingCubes/MarchingCubes.cpp
     src/Classes/TransformFeedback.cpp
     src/Classes/Rainbow.cpp
+    src/FluidSim/Image.cpp
 )
 set(HEADERS
     src/Classes/Shader.hpp
@@ -21,6 +22,8 @@ set(HEADERS
     src/constants.hpp
     src/Classes/TransformFeedback.hpp
     src/Classes/Rainbow.hpp
+    src/FluidSim/Image.h
+    src/FluidSim/types.h
 )
 set(SHADERS
 )

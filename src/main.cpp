@@ -32,6 +32,7 @@ void setGravity();
 
 void setBunny();
 int generateAttachmentTexture(GLboolean depth, GLboolean stencil);
+void createFBO(GLuint& fb, GLuint& tex);
 
 const GLuint WIDTH = 1200, HEIGHT = 1000;
 
@@ -58,6 +59,8 @@ MarchingCubes marchingCubes;
 bool doForce = false;
 bool useNormal = false;
 
+GLFWwindow* window;
+
 int main()
 {
     glfwInit();
@@ -67,7 +70,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "LearnOpenGL", nullptr, nullptr);    
+    window = glfwCreateWindow(WIDTH, HEIGHT, "LearnOpenGL", nullptr, nullptr);    
     if (window == nullptr)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -123,112 +126,29 @@ int main()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)(2 * sizeof(GLfloat)));
     glBindVertexArray(0);
 
-    // Framebuffers
-    GLuint framebuffer;
-    glGenFramebuffers(1, &framebuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);  
-    // Create a color attachment texture
-    GLuint textureColorbuffer = generateAttachmentTexture(false, false);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
-        // Create a renderbuffer object for depth and stencil attachment (we won't be sampling these)
-        // GLuint rbo;
-        // glGenRenderbuffers(1, &rbo);
-        // glBindRenderbuffer(GL_RENDERBUFFER, rbo); 
-        // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WIDTH, HEIGHT); // Use a single renderbuffer object for both a depth AND stencil buffer.
-        // glBindRenderbuffer(GL_RENDERBUFFER, 0);
-        // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo); // Now actually attach it
-    // Now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-       std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
+    GLuint frameBuf[2];
+    GLuint texBuf[2];
 
+    glGenFramebuffers(2, frameBuf);
+    glGenTextures(2, texBuf);
+    createFBO(frameBuf[0], texBuf[0]);
+        /* not sure what this does... */
+        GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+        glDrawBuffers(1, DrawBuffers);
+    createFBO(frameBuf[1], texBuf[1]);
 
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    GLfloat cubeVertices[] = {
-        // Positions          // Texture Coords
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-    };
-    //sets up stuff for cube
-    GLuint cubeVAO, cubeVBO;
-    glGenVertexArrays(1, &cubeVAO);
-    glGenBuffers(1, &cubeVBO);
-    glBindVertexArray(cubeVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), &cubeVertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
-    glBindVertexArray(0);
-
+    bool toggle = true;
 
     double lastTime = glfwGetTime();
     int nbFrames = 0;
     while (!glfwWindowShouldClose(window))
     {
-        /////////////////////////////////////////////////////
-        // Bind to framebuffer and draw to color texture 
-        // as we normally would.
-        // //////////////////////////////////////////////////
-
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-        // Clear all attached buffers        
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // We're not using stencil buffer so why bother with clearing?
-
-        glEnable(GL_DEPTH_TEST);
-
-
         // Calculate deltatime of current frame
         GLfloat currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
 
         double currentTime = glfwGetTime();
         nbFrames++;
@@ -238,49 +158,26 @@ int main()
             nbFrames = 0;
             lastTime += 1.0;
         }
-
         // Check if any events have been activiated (key pressed, mouse moved etc.) and call corresponding response functions
         glfwPollEvents();
         do_movement();
 
-        // Clear the colorbuffer
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Create camera transformations
-        glm::mat4 view;
-        view = camera.GetViewMatrix();
-        glm::mat4 projection = glm::perspective(camera.Zoom, (GLfloat)WIDTH / (GLfloat)HEIGHT, 0.1f, 10000.0f);
-        // Get the uniform locations
-        
+
+        /////////////////////////////////////////////////////
+        // Bind to framebuffer and draw to color texture 
+        // as we normally would.
+        ////////////////////////////////////////////////////
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuf[toggle]);
+        // Clear all attached buffers        
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // We're not using stencil buffer so why bother with clearing?
+
         shader->use();
-        GLint modelLoc = glGetUniformLocation(shader->getProg(), "model");
-        GLint viewLoc  = glGetUniformLocation(shader->getProg(),  "view");
-        GLint projLoc  = glGetUniformLocation(shader->getProg(),  "projection");
-        // Pass the matrices to the shader
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        glBindTexture(GL_TEXTURE_2D, texBuf[!toggle]);
 
-        glm::mat4 model;
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        
-        GLint doForceLoc  = glGetUniformLocation(shader->getProg(),  "doForce");
-        if (doForce) {
-            glUniform1f(doForceLoc, 1.0f);        
-        }
-        else {
-            glUniform1f(doForceLoc, 0.0f);
-        }
+        // render scene to frame buffer
 
-        glBindVertexArray(cubeVAO);
-        model = glm::translate(model, glm::vec3(-1.0f, 0.0f, -1.0f));
-        glUniformMatrix4fv(glGetUniformLocation(shader->getProg(), "model"), 1, GL_FALSE, glm::value_ptr(model));
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-        model = glm::mat4();
-        model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.0f));
-        glUniformMatrix4fv(glGetUniformLocation(shader->getProg(), "model"), 1, GL_FALSE, glm::value_ptr(model));
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-        glBindVertexArray(0);           
+
 
 
             /////////////////////////////////////////////////////
@@ -296,20 +193,46 @@ int main()
             // Draw Screen
             screenShader->use();
             glBindVertexArray(quadVAO);
-            glBindTexture(GL_TEXTURE_2D, textureColorbuffer);   // Use the color attachment texture as the texture of the quad plane
+            glBindTexture(GL_TEXTURE_2D, texBuf[toggle]);   // Use the color attachment texture as the texture of the quad plane
             glDrawArrays(GL_TRIANGLES, 0, 6);
             glBindVertexArray(0);
 
-
-            // glDisable(GL_RASTERIZER_DISCARD);
-            // glFlush();
+            toggle = !toggle;
+            // Swap the screen buffers
             glfwSwapBuffers(window);
-        // Swap the screen buffers
     }
 
 
-    glDeleteFramebuffers(1, &framebuffer);
+    glDeleteFramebuffers(1, &frameBuf[0]);
+    glDeleteFramebuffers(1, &frameBuf[1]);
     return 0;
+}
+
+/*
+Helper function to create the framebuffer object and associated texture to write to
+*/
+void createFBO(GLuint& fb, GLuint& tex) {
+    //initialize FBO (global memory)
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    //set up framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    //set up texture
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "Error setting up frame buffer - exiting" << std::endl;
+        exit(0);
+    }
 }
 
 int generateAttachmentTexture(GLboolean depth, GLboolean stencil)
