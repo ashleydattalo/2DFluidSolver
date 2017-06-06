@@ -96,6 +96,8 @@ struct Rect {
 Rect data[(SIZE + 2) * (SIZE + 2)];
 int numRects = 0;
 
+bool step = false;
+
 int main()
 {
     //allocated data
@@ -165,11 +167,11 @@ int main()
     // Uncommenting this call will result in wireframe polygons.
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    float visc = 1.0f;
+    float visc = 100.0f;
     float diff = 1.0f;
-    float dt = 0.1f;
+    float dt = 8.0f;
         
-    addDensity(densityPrev);
+    
 
     // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
     // void addForce(float *velocityX, float *velocityY, float forceX, float forceY);
@@ -186,15 +188,21 @@ int main()
 
         // addDensity(densityPrev);
         // addForce(velocityPrevX, velocityPrevY, 2, 2);
-        getFromUI(densityPrev, velocityPrevX, velocityPrevY);
-        vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
-        dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);
-        setDensity(density);
-        dt++;
+        std::cout << step << std::endl;
+        // if (!step) {
+            getFromUI(densityPrev, velocityPrevX, velocityPrevY);
+            // setDensity(densityPrev);
+        // }
+        // if (step) {
+            vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
+            dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);
+            setDensity(density);
+            // dt++;
+        // }
 
-        // memset(densityPrev, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-        memset(velocityPrevX, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-        memset(velocityPrevY, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
+        // memcpy(density, densityPrev, sizeof(float) * (SIZE + 2) * (SIZE + 2));
+        memcpy(velocityX, velocityPrevX, sizeof(float) * (SIZE + 2) * (SIZE + 2));
+        memcpy(velocityY, velocityPrevY, sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
         // Draw our first triangle
         shader->use();
@@ -258,12 +266,12 @@ void setDensity(float *density) {
         vertices[at(i,j)*6+4].z = densityVal;
         vertices[at(i,j)*6+5].z = densityVal;
 
-        // data[at(i, j)].leftTri.p1.z = densityVal;
-        // data[at(i, j)].leftTri.p2.z = densityVal;
-        // data[at(i, j)].leftTri.p3.z = densityVal;
-        // data[at(i, j)].rightTri.p1.z = densityVal;
-        // data[at(i, j)].rightTri.p2.z = densityVal;
-        // data[at(i, j)].rightTri.p3.z = densityVal;
+        // data[at(i, j)].leftTri.p1.z = 0.0f;
+        // data[at(i, j)].leftTri.p2.z = 0.0f;
+        // data[at(i, j)].leftTri.p3.z = 0.0f;
+        // data[at(i, j)].rightTri.p1.z = 0.0f;
+        // data[at(i, j)].rightTri.p2.z = 0.0f;
+        // data[at(i, j)].rightTri.p3.z = 0.0f;
     END_FOR
     
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -344,17 +352,18 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     //     }
     // }
 
-    // for (int i = 1; i <= SIZE; i++) {
-    //     for (int j = 1; j <= SIZE; j++) {
-    //         float right = (data[at(i,j)].rightTri.p1.z + 
-    //             data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
-    //         float left = (data[at(i,j)].leftTri.p1.z + 
-    //             data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
-    //         float densityVal = (left + right) / 2;
-            
-    //         densityPrev[at(i,j)] = densityVal;
-    //     }        
-    // }
+    for (int i = 1; i <= SIZE; i++) {
+        for (int j = 1; j <= SIZE; j++) {
+            float right = (data[at(i,j)].rightTri.p1.z + 
+                data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
+            float left = (data[at(i,j)].leftTri.p1.z + 
+                data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
+            float densityVal = (left + right) / 2;
+
+            densityPrev[at(i,j)] += data[at(i,j)].rightTri.p1.z;
+
+        }        
+    }
 
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
@@ -376,6 +385,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
+    if (key == GLFW_KEY_A && action == GLFW_PRESS) {
+        step = !step;
+    }
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
