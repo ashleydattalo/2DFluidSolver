@@ -96,7 +96,8 @@ struct Rect {
 Rect data[(SIZE + 2) * (SIZE + 2)];
 int numRects = 0;
 
-bool step = false;
+bool step = true;
+bool pauseSim = false;
 
 int main()
 {
@@ -167,14 +168,15 @@ int main()
     // Uncommenting this call will result in wireframe polygons.
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    float visc = 100.0f;
+    float visc = 1.0f;
     float diff = 1.0f;
-    float dt = 8.0f;
+    float dt = 10.0f;
         
     
 
     // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
     // void addForce(float *velocityX, float *velocityY, float forceX, float forceY);
+    addDensity(densityPrev);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -186,23 +188,21 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // addDensity(densityPrev);
         // addForce(velocityPrevX, velocityPrevY, 2, 2);
-        std::cout << step << std::endl;
-        // if (!step) {
+
+        if (!pauseSim) {
             getFromUI(densityPrev, velocityPrevX, velocityPrevY);
-            // setDensity(densityPrev);
-        // }
-        // if (step) {
-            vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
-            dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);
+            if (step) {
+                vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
+                dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);            
+            }
             setDensity(density);
-            // dt++;
-        // }
+        }
+
 
         // memcpy(density, densityPrev, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-        memcpy(velocityX, velocityPrevX, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-        memcpy(velocityY, velocityPrevY, sizeof(float) * (SIZE + 2) * (SIZE + 2));
+        // memcpy(velocityX, velocityPrevX, sizeof(float) * (SIZE + 2) * (SIZE + 2));
+        // memcpy(velocityY, velocityPrevY, sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
         // Draw our first triangle
         shader->use();
@@ -352,6 +352,10 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     //     }
     // }
 
+    // std::cout << std::endl;
+    // std::cout << std::endl;
+    // std::cout << std::endl;
+
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
             float right = (data[at(i,j)].rightTri.p1.z + 
@@ -360,9 +364,10 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
                 data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
             float densityVal = (left + right) / 2;
 
-            densityPrev[at(i,j)] += data[at(i,j)].rightTri.p1.z;
-
+            densityPrev[at(i,j)] += densityVal;
+            // std::cout << densityVal << " ";
         }        
+        // std::cout << std::endl;
     }
 
     for (int i = 1; i <= SIZE; i++) {
@@ -375,6 +380,18 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     }
 }
 
+void resetDensity() {
+    for (int i = 1; i <= SIZE; i++) {
+        for (int j = 1; j <= SIZE; j++) {
+            data[at(i,j)].leftTri.p1.z = 0.0f;
+            data[at(i,j)].leftTri.p2.z = 0.0f;
+            data[at(i,j)].leftTri.p3.z = 0.0f;
+            data[at(i,j)].rightTri.p1.z = 0.0f;
+            data[at(i,j)].rightTri.p2.z = 0.0f;
+            data[at(i,j)].rightTri.p3.z = 0.0f;
+        }        
+    }
+}
 
 
 
@@ -385,8 +402,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
-    if (key == GLFW_KEY_A && action == GLFW_PRESS) {
+    if (key == GLFW_KEY_S && action == GLFW_PRESS) {
         step = !step;
+    }
+    if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+        pauseSim = !pauseSim;
+    }
+    if (key == GLFW_KEY_R && action == GLFW_PRESS) {
+        resetDensity();
     }
 }
 
@@ -410,7 +433,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
             lastX = xpos;
             lastY = ypos;
 
-            glm::vec2 offset = glm::normalize(glm::vec2(xoffset, yoffset));
+            glm::vec2 offset = glm::normalize(glm::vec2(xoffset, -yoffset));
             glm::vec3 cellClicked = getCell(glm::vec3(lastX, lastY, 0.0f));
             if (go) {
                 addCellDensity(cellClicked);
