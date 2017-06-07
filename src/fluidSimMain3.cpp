@@ -170,7 +170,7 @@ int main()
 
     float visc = 1.0f;
     float diff = 1.0f;
-    float dt = 10.0f;
+    float dt = 3.0f;
         
     
 
@@ -317,13 +317,27 @@ void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset) {
             // index = at(i,j);
         }
     }
-    data[index].hasVelocity = true;
-    data[index].velocity = offset;   
+    // data[index].hasVelocity = true;
+    // data[index].velocity = offset;  
+
+    int x = cellClicked.x; 
+    int y = cellClicked.y; 
+    if (x - 5 > 1 && x + 5 < WIDTH -1) {
+        if (y - 5 > 1 && y + 5 < HEIGHT -1) {
+            for (int i = x-5; i < x+5; i++) {
+                for (int j = y-5; j < y+5; j++) {
+                    index = at(i,j);
+                    data[index].hasVelocity = true;
+                    data[index].velocity = offset;  
+                }
+            }
+        }
+    }
 }
 
 void addDensity(float *density) {
-    for (int i = 20; i < 90; i++) {
-        for (int j = 20; j < 90; j++) {
+    for (int i = (SIZE/4); i < SIZE/2 + (SIZE/4); i++) {
+        for (int j = (SIZE/4); j < SIZE/2 + (SIZE/4); j++) {
             density[at(i, j)] = 1.0f;
         }   
     }
@@ -335,22 +349,6 @@ void addDensity(float *density) {
 }
 
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
-
-    // if (currX <= WIDTH && currX >=0 && currY <= HEIGHT && currY >=0) {
-    //     GLfloat xoffset = currX - lastX;
-    //     GLfloat yoffset = lastY - currY; 
-
-    //     glm::vec2 offset = glm::normalize(glm::vec2(xoffset, yoffset));
-    //     glm::vec3 cellClicked = getCell(glm::vec3(lastX, lastY, 0.0f));
-    //     if (go) {
-    //         addCellDensity(cellClicked);
-    //         printVec(cellClicked, "cellClicked");            
-    //     }
-    //     else {            
-    //         addCellVelocity(cellClicked, offset);
-    //         printVec(glm::vec3(offset, 0.0f), "offset");            
-    //     }
-    // }
 
     // std::cout << std::endl;
     // std::cout << std::endl;

@@ -139,6 +139,9 @@ int main() {
 
 		
 		dt++;
+		if (i % 10 == 0) {
+			drawDensity(density);
+		}
 	}
 	drawDensity(density);
 	printArr(density, "final density");
@@ -288,11 +291,28 @@ void addDensitySource(float *density) {
 	// 		density[at(3+i, 70 + j)] = 1.0f;		
 	// 	}
 	// }
-	for (int i = 50; i < 150; i++) {
-        for (int j = 50; j < 150; j++) {
-            density[at(i, j)] = 1.0f;
-        }   
-    }
+	for (int i = 0; i < 50; i++) {
+		for (int j = 0; j < 50; j++) {
+			density[at(i, j)] = 1.0f;
+		}	
+	}
+	for (int i = 50; i < 60; i++) {
+		for (int j = 0; j < 30; j++) {
+			density[at(2+i, 70 + j)] = 1.0f;
+			density[at(3+i, 70 + j)] = 1.0f;
+			density[at(4+i, 70 + j)] = 1.0f;
+			density[at(3+i, 70 + j)] = 1.0f;
+			density[at(3+i, 70 + j)] = 1.0f;		
+		}
+	}
+}
+void addForce(float *velocityX, float *velocityY, float forceX, float forceY) {
+	for (int i = START; i < END; i++) {
+		for (int j = START; j < END; j++) {
+			velocityX[at(i,j)] = forceX;
+			velocityY[at(i,j)] = forceY;
+		}
+	}
 }
 // void addForce(float *velocityX, float *velocityY, float forceX, float forceY) {
 // 	for (int i = START; i < END; i++) {

@@ -294,10 +294,6 @@ void printArr(float *arr, std::string arrName) {
 		}
 		std::cout << std::endl;
 	}
-
-	// for(int i = 0; i < (SIZE +2) * (SIZE +2); i++) {
-	// 	std::cout << arr[i] << " ";
-	// }
 	std::cout << std::endl;
 }
 

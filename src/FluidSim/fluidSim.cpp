@@ -10,7 +10,10 @@
 #define SIZE 200
 #define START 1
 #define END SIZE + 1
-#define at(i,j) ((i) + (SIZE + 2)*(j))
+
+#define at(i,j) ((i) + (j) * (SIZE + 2))
+#define atZ(i,j,k) ((i) + (j * (SIZE + 2)) + (k * (SIZE + 2) * (SIZE + 2)))
+
 #define SWAP(x0,x) {float *tmp=x0;x0=x;x=tmp;}
 
 void dens_step(int N, float * x, float * x0, float * u, float * v, float diff, float dt);
@@ -34,7 +37,6 @@ int main() {
 	float *velocityPrevX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 	float *velocityPrevY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
-
 	float visc = 100.0f;
 	float diff = 1.0f;
 	float dt = 0.1f;
@@ -45,11 +47,11 @@ int main() {
 	for (int i = 1; i < 500; i++) {
 		// std::cout << "i: " << i << std::endl;
 
-		// addForce(velocityPrevX, velocityPrevY, 10.0f, 0.0f);
-		// addForceAwayFromCenter(velocityPrevX, velocityPrevY);
+		// addForce(velX0, velY0, 10.0f, 0.0f);
+		// addForceAwayFromCenter(velX0, velY0);
 
-		vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
-		dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);
+		vel_step(SIZE, velX, velY, velZ, velX0, velY0, velZ0, visc, dt);
+		dens_step(SIZE, density, densityPrev, velX, velY, diff, dt);
 
 
 		// printArr(density, "density");
@@ -62,7 +64,7 @@ int main() {
 }
 
 void add_source(int N, float *x, float *s, float dt) {
-	int size = (N + 2) * (N + 2);
+	int size = (N + 2) * (N + 2) * (N + 2);
 	for (int i = 0; i < size; i++) {
 		x[i] += dt * s[i];
 	}
@@ -75,6 +77,9 @@ void set_bnd(int N, int b, float * x ) {
 		x[at(N+1, i)]    = b==1 ? -x[at(N, i)] : x[at(N,i)];
 		x[at(i, 0)]      = b==2 ? -x[at(i, 1)] : x[at(i, 1)];
 		x[at(i, N+1)]    = b==2 ? -x[at(i, N)] : x[at(i,N)];
+
+		x[at(i, 0)]      = b==2 ? -x[at(i, 1)] : x[at(i, 1)];
+		x[at(i, N+1)]    = b==2 ? -x[at(i, N)] : x[at(i,N)];
 	}
 	x[at(0 ,0 )] = 0.5*(x[at(1,0 )]+x[at(0 ,1)]);
 	x[at(0 ,N+1)] = 0.5*(x[at(1,N+1)]+x[at(0 ,N )]);
@@ -83,40 +88,52 @@ void set_bnd(int N, int b, float * x ) {
 }
 
 void diffuse(int N, int b, float *x, float *x0, float diff, float dt) {
-	int i, j, k;
-	float a = dt * diff * N * N;
+	int l, i, j, k;
+	float a = dt * diff * N * N; //maybe change to N * N * N?
 
-	for (k = 0; k < 20; k++) {
+	for (l = 0; l < 20; l++) {
 		for(int i = 1; i <= N; i++) {
-			for (int j = 0; j <= N; j++) {
-				float surrDensity = x[at(i-1,j)] + x[at(i+1,j)] + x[at(i,j-1)] + x[at(i,j+1)];
-				x[at(i,j)] = (x0[at(i,j)] + a * surrDensity) / (1 + 4*a);
+			for (int j = 1; j <= N; j++) {
+				for (int k = 1; k <= N; k++) {
+					float surrDensity = x[at(i - 1, j, k)] + x[at(i + 1, j, k)];
+					surrDensity += x[at(i, j - 1, k)] + x[at(i, j + 1, k)];
+					surrDensity += x[at(i, j, k - 1)] + x[at(i, j, k + 1)];
+
+					x[at(i,j,k)] = (x0[at(i,j,k)] + a * surrDensity) / (1 + 4*a);
+				}
 			}
-		}
-		set_bnd(N,b,x);
+		set_bnd(N,b,x); //do something with this?
 	}
 }
 
-void advect(int N, int b, float *d, float *d0, float *u, float *v, float dt) {
-	int i, j, i0, j0, i1, j1;
-	float x, y, s0, t0, s1, t1, dt0;
+//convert to 3D...
+void advect(int N, int b, float *d, float *d0, float *u, float *v, float *w, float dt) {
+	int i, j, k, i0, j0, k0, i1, j1, k1;
+	float x, y, z, s0, t0, q0, s1, t1, q1, dt0;
 
 	dt0 = dt * N;
 	for(int i = 1; i <= N; i++) {
-		for (int j = 0; j <= N; j++) {
-			x = i-dt0*u[at(i,j)]; y = j-dt0*v[at(i,j)];
-			if (x<0.5) x=0.5; if (x>N+0.5) x=N+0.5; i0=(int)x; i1=i0+1;
-			if (y<0.5) y=0.5; if (y>N+0.5) y=N+0.5; j0=(int)y; j1=j0+1; 
-			s1 = x-i0; s0 = 1-s1; 
-			t1 = y-j0; t0 = 1-t1;
-			d[at(i,j)] = s0*(t0*d0[at(i0,j0)]+t1*d0[at(i0,j1)])+s1*(t0*d0[at(i1,j0)]+t1*d0[at(i1,j1)]);
+		for (int j = 1; j <= N; j++) {
+			for (int k = 1; k <= N; k++) {
+				x = i-dt0*u[at(i,j,k)]; 
+				y = j-dt0*v[at(i,j,k)];
+				z = k-dt0*w[at(i,j,k)];
+				if (x<0.5) x=0.5; if (x>N+0.5) x=N+0.5; i0=(int)x; i1=i0+1;
+				if (y<0.5) y=0.5; if (y>N+0.5) y=N+0.5; j0=(int)y; j1=j0+1; 
+				if (z<0.5) z=0.5; if (z>N+0.5) z=N+0.5; k0=(int)z; k1=k0+1; 
+				s1 = x-i0; s0 = 1-s1; 
+				t1 = y-j0; t0 = 1-t1;
+				q1 = z-k0; q0 = 1-q1;
+				d[at(i,j,k)] = 
+				s0 *(t0 * d0[at(i0,j0)] + t1 * d0[at(i0,j1)]) + s1 *(t0 * d0[at(i1,j0)] + t1 * d0[at(i1,j1)]);
+			}
 		}
 	}
 	set_bnd(N, b, d);
 }
 
 void project ( int N, float * u, float * v, float * p, float * div ) {
-	int i, j, k;
+	int i, j, l;
 	float h;
 
 	h = 1.0 / N;
@@ -130,7 +147,7 @@ void project ( int N, float * u, float * v, float * p, float * div ) {
 	set_bnd(N, 0, div);
 	set_bnd(N, 0, p);
 
-	for (k = 0; k < 20; k++) {
+	for (l = 0; l < 20; l++) {
 		for(int i = 1; i <= N; i++) {
 			for (int j = 0; j <= N; j++) {
 				p[at(i,j)] = (div[at(i,j)]+p[at(i-1,j)]+p[at(i+1,j)]+p[at(i,j-1)]+p[at(i,j+1)])/4;
