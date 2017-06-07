@@ -30,7 +30,7 @@
 #include "constants.hpp"
 
 #define TIME 2000000
-#define SIZE 200
+#define SIZE 300
 #define at(i,j) ((i) + (SIZE + 2)*(j))
 // #define SWAP(x0,x) {float *tmp=x0;x0=x;x=tmp;}
 #define START 1
@@ -78,8 +78,10 @@ bool go;
 
 GLuint VBO, VAO;
 GLuint posBufID, densBufID;
+GLuint elementbuffer;
 std::vector<glm::vec3> vertices;
 std::vector<GLfloat> densities;
+std::vector<unsigned int> indices;
 
 struct Triangle {
     glm::vec3 p1;
@@ -98,7 +100,15 @@ struct Rect {
     float density;
 };
 
+struct IndicesStruct {
+    int idx1;
+    int idx2;
+    int idx3;
+    int idx4;
+};
+
 Rect data[(SIZE + 2) * (SIZE + 2)];
+IndicesStruct indicesArr[SIZE][SIZE];
 int numRects = 0;
 
 bool step = true;
@@ -186,6 +196,11 @@ int main()
     // glBufferData(GL_ARRAY_BUFFER, densities.size() * sizeof(GLfloat), &densities[0], GL_DYNAMIC_DRAW);
     // glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(0));
 
+    // Generate a buffer for the indices
+    glGenBuffers(1, &elementbuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -193,6 +208,7 @@ int main()
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         
     addDensity(densityPrev);
+
 
     while (!glfwWindowShouldClose(window))
     {
@@ -220,7 +236,9 @@ int main()
         // Draw our first triangle
         shader->use();
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, numRects * 6);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+        glDrawElements(GL_TRIANGLE_STRIP, indices.size(), GL_UNSIGNED_INT, 0);
+        // glDrawArrays(GL_TRIANGLES, 0, numRects * 6);
         glBindVertexArray(0);
 
         // Swap the screen buffers
@@ -232,12 +250,15 @@ int main()
     return 0;
 }
 
+const float left = -1.0f, right = 1.0f;
+const float bot = -1.0f, top = 1.0f;
+
 void createGrid() {
     float cellSize = 2.0f / SIZE;
     float x = 0.0;
-    float y = 1.0;
+    float y = top;
     for (int i = 0; i <= SIZE + 1; i++) {
-        x = -1.0f;
+        x = left;
         for (int j = 0; j <= SIZE + 1; j++) {
             data[at(i, j)].id = numRects++;
             data[at(i, j)].hasVelocity = false;
@@ -246,34 +267,49 @@ void createGrid() {
             data[at(i, j)].hasDensity = false;
             data[at(i, j)].density = 0.0f;
 
-            vertices.push_back(glm::vec3(x, y, 0.0f));
-            vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
-            vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
+            // vertices.push_back(glm::vec3(x, y, 0.0f));
+            // vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
+            // vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
 
-            vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
-            vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
-            vertices.push_back(glm::vec3(x+cellSize, y-cellSize, 0.0f));
-
-            // vertices.push_back(glm::vec2(x, y));
-            // vertices.push_back(glm::vec2(x, y-cellSize));
-            // vertices.push_back(glm::vec2(x+cellSize, y));
-
-            // vertices.push_back(glm::vec2(x, y-cellSize));
-            // vertices.push_back(glm::vec2(x+cellSize, y));
-            // vertices.push_back(glm::vec2(x+cellSize, y-cellSize));
-
-            densities.push_back(0.0f);
-            densities.push_back(0.0f);
-            densities.push_back(0.0f);
-            densities.push_back(0.0f);
-            densities.push_back(0.0f);
-            densities.push_back(0.0f);
+            // vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
+            // vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
+            // vertices.push_back(glm::vec3(x+cellSize, y-cellSize, 0.0f));
 
             x += cellSize;
         }
         y -= cellSize;
     }
     std::cout << "\n" << numRects << std::endl << std::endl;
+
+    int sizePlus1 = SIZE + 1;
+
+    y = top;
+    for (int j = 0; j <= SIZE; j++) {
+        x = left;
+        for (int i = 0; i <= SIZE; i++) {
+            vertices.push_back(glm::vec3(x, y, 1.0f));
+            x += cellSize;
+        }
+        y -= cellSize;
+    }
+
+    for (int j = 0; j < SIZE; j++) {
+        for (int i = 0; i < SIZE; i++) {
+            indices.push_back(j * sizePlus1 + i);
+            indices.push_back(j * sizePlus1 + i + 1);
+            indices.push_back( (j + 1) * sizePlus1 + i);
+
+            indices.push_back(j * sizePlus1 + i + 1);
+            indices.push_back((j + 1) * sizePlus1 + i);
+            indices.push_back((j + 1) * sizePlus1 + i + 1);
+
+            indicesArr[i][j].idx1 = j * sizePlus1 + i;
+            indicesArr[i][j].idx2 = j * sizePlus1 + i + 1;
+            indicesArr[i][j].idx3 = (j + 1) * sizePlus1 + i;
+            indicesArr[i][j].idx4 = (j + 1) * sizePlus1 + i + 1;
+
+        }
+    }
 }
 
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
@@ -303,18 +339,20 @@ void setDensity(float *density) {
     FOR_EACH_CELL
         int index = at(i,j);
         float densityVal = density[index];
-        // densities[index] = densityVal;
-        // densities[index+1] = densityVal;
-        // densities[index+2] = densityVal;
-        // densities[index+3] = densityVal;
-        // densities[index+4] = densityVal;
-        // densities[index+5] = densityVal;
-        vertices[at(i,j)*6].z = densityVal;
-        vertices[at(i,j)*6+1].z = densityVal;
-        vertices[at(i,j)*6+2].z = densityVal;
-        vertices[at(i,j)*6+3].z = densityVal;
-        vertices[at(i,j)*6+4].z = densityVal;
-        vertices[at(i,j)*6+5].z = densityVal;
+
+        int idx1 = indicesArr[i-1][j-1].idx1;
+        int idx2 = indicesArr[i-1][j-1].idx2;
+        int idx3 = indicesArr[i-1][j-1].idx3;
+        int idx4 = indicesArr[i-1][j-1].idx4;
+
+
+        vertices[idx1].z = densityVal;
+        vertices[idx2].z = densityVal;
+        vertices[idx3].z = densityVal;
+
+        vertices[idx2].z = densityVal;
+        vertices[idx3].z = densityVal;
+        vertices[idx4].z = densityVal;
 
         // data[at(i,j)].hasDensity = true;
         // data[at(i,j)].density += densityVal;
@@ -458,11 +496,11 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
             glm::vec3 cellClicked = getCell(glm::vec3(lastX, lastY, 0.0f));
             if (go) {
                 addCellDensity(cellClicked);
-                printVec(cellClicked, "cellClicked");            
+                // printVec(cellClicked, "cellClicked");            
             }
             else {            
                 addCellVelocity(cellClicked, offset);
-                printVec(glm::vec3(offset, 0.0f), "offset");            
+                // printVec(glm::vec3(offset, 0.0f), "offset");            
             }
         }
     }

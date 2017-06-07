@@ -78,7 +78,7 @@ int main() {
 	drawDensity(densityPrev);
 
 	for (int i = 1; i < 100; i++) {
-		// std::cout << "i: " << i << std::endl;
+		std::cout << "i: " << i << std::endl;
 
 		// addForce(velocityPrevX, velocityPrevY, 10.0f, 0.0f);
 		addForceAwayFromCenter(velocityPrevX, velocityPrevY);
