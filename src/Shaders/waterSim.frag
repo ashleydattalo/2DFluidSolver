@@ -7,5 +7,5 @@ out vec4 color;
 void main()
 {
     vec3 density = vec3(densityColor);
-    color = vec4(densityColor*.7, densityColor * .3, densityColor *.2, 1.0f);
+    color = vec4(densityColor*.2, densityColor * .4, densityColor *.4, 1.0f);
 }
