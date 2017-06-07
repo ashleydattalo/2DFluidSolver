@@ -280,7 +280,7 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
             if (data[at(i,j)].hasDensity) {
-                densityPrev[at(i,j)] = data[at(i,j)].density;
+                densityPrev[at(i,j)] += data[at(i,j)].density;
                 // data[at(i,j)].hasDensity = false;
                 // data[at(i,j)].density = 0.0f;
             }
@@ -318,8 +318,8 @@ void setDensity(float *density) {
 
         // data[at(i,j)].hasDensity = true;
         // data[at(i,j)].density += densityVal;
-        data[at(i,j)].hasDensity = false;
-        data[at(i,j)].density = 0.0f;
+        // data[at(i,j)].hasDensity = false;
+        // data[at(i,j)].density = 0.0f;
 
         // data[at(i,j)].hasVelocity = false;
         // data[at(i,j)].velocity = glm::vec2(0.0f);
@@ -334,11 +334,13 @@ void addCellDensity(glm::vec3 cellClicked) {
 
     int x = cellClicked.x;
     int y = cellClicked.y;
+    data[index].hasDensity = true;
+    data[index].density += densityColor;
 
-    if (x - 3 > 0 && x + 3 < WIDTH) {
-        if (y - 3 > 0 && y + 3 < HEIGHT) {
-            for (int i = -3; i < 3; i++) {
-                for (int j = -3; j < 3; j++) {
+    if (x - 2 > 0 && x + 2 < WIDTH) {
+        if (y - 2 > 0 && y + 2 < HEIGHT) {
+            for (int i = -2; i < 2; i++) {
+                for (int j = -2; j < 2; j++) {
                     index = at(x+i,j+y);
                     data[index].hasDensity = true;
                     data[index].density += densityColor;

@@ -32,6 +32,6 @@ void main()
     //color = vec4(densityColor.z * .3, densityColor.z * .6, densityColor.z * .4, 1.0f);
 
 
-    color = vec4(vec3(densityColor.z), 1.0f);
+    //color = vec4(vec3(densityColor.z), 1.0f);
 }
 
