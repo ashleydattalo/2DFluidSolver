@@ -25,6 +25,13 @@ void main()
     //on fire!
     color = vec4(densityColor.z*.7, densityColor.z * .3, densityColor.z *.2, 1.0f);
 
+    //alantis blue
+    color = vec4(densityColor.z*.2, densityColor.z * .3, densityColor.z *.7, 1.0f);
+
+
+    //blue/purple ~ turns pink in bright spots
+    color = vec4(densityColor.z*.3, densityColor.z * .2, densityColor.z *.7, 1.0f);
+
     //pink
     //color = vec4(densityColor.z * .7, densityColor.z * .3, densityColor.z * .5, 1.0f);
 
