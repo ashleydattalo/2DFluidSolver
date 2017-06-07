@@ -280,7 +280,7 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
             if (data[at(i,j)].hasDensity) {
-                densityPrev[at(i,j)] += data[at(i,j)].density;
+                densityPrev[at(i,j)] = data[at(i,j)].density;
                 // data[at(i,j)].hasDensity = false;
                 // data[at(i,j)].density = 0.0f;
             }
