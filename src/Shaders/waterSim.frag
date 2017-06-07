@@ -25,7 +25,13 @@ void main()
     //on fire!
     color = vec4(densityColor.z*.7, densityColor.z * .3, densityColor.z *.2, 1.0f);
 
-    //normal
-    //color = vec4(vec3(densityColor.z), 1.0f);
+    //pink
+    //color = vec4(densityColor.z * .7, densityColor.z * .3, densityColor.z * .5, 1.0f);
+
+    //green
+    //color = vec4(densityColor.z * .3, densityColor.z * .6, densityColor.z * .4, 1.0f);
+
+
+    color = vec4(vec3(densityColor.z), 1.0f);
 }
 

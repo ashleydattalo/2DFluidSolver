@@ -77,7 +77,9 @@ GLfloat currX, currY;
 bool go;
 
 GLuint VBO, VAO;
+GLuint posBufID, densBufID;
 std::vector<glm::vec3> vertices;
+std::vector<GLfloat> densities;
 
 struct Triangle {
     glm::vec3 p1;
@@ -89,8 +91,11 @@ struct Rect {
     int id;
     Triangle leftTri;
     Triangle rightTri;
+
     bool hasVelocity;
     glm::vec2 velocity;
+    bool hasDensity;
+    float density;
 };
 
 Rect data[(SIZE + 2) * (SIZE + 2)];
@@ -98,6 +103,11 @@ int numRects = 0;
 
 bool step = true;
 bool pauseSim = false;
+float densityColor = 1.0f;
+
+float visc = 1.0f;
+float diff = 1.0f;
+float dt = 8.0f;
 
 int main()
 {
@@ -142,53 +152,57 @@ int main()
     }    
 
     Shader *shader = new Shader(SHADER_PATH "waterSim.vert", SHADER_PATH "waterSim.frag");
-    
+
     createGrid();
+
+    glDisable(GL_DEPTH_TEST);
 
     // Define the viewport dimensions
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);  
     glViewport(0, 0, width, height);
+    
+    // GLuint bufs[2];
+    // glGenBuffers(2, bufs);
+    // posBufID = bufs[0];
+    // densBufID = bufs[1];
 
-    glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
+    glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
 
+    glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(0);
+    // glEnableVertexAttribArray(0);
+    // glBindBuffer(GL_ARRAY_BUFFER, posBufID);
+    // glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec2), &vertices[0], GL_STATIC_DRAW);
+    // glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+
+    // glEnableVertexAttribArray(1);
+    // glBindBuffer(GL_ARRAY_BUFFER, densBufID);
+    // glBufferData(GL_ARRAY_BUFFER, densities.size() * sizeof(GLfloat), &densities[0], GL_DYNAMIC_DRAW);
+    // glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(0));
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
     glBindVertexArray(0);
-
 
     // Uncommenting this call will result in wireframe polygons.
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-    float visc = 1.0f;
-    float diff = 1.0f;
-    float dt = 3.0f;
         
-    
-
-    // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
-    // void addForce(float *velocityX, float *velocityY, float forceX, float forceY);
     addDensity(densityPrev);
 
     while (!glfwWindowShouldClose(window))
     {
-        // Check if any events have been activiated (key pressed, mouse moved etc.) and call corresponding response functions
         glfwPollEvents();
 
-        // Render
-        // Clear the colorbuffer
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         // addForce(velocityPrevX, velocityPrevY, 2, 2);
+        // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
 
         if (!pauseSim) {
             getFromUI(densityPrev, velocityPrevX, velocityPrevY);
@@ -199,8 +213,7 @@ int main()
             setDensity(density);
         }
 
-
-        // memcpy(density, densityPrev, sizeof(float) * (SIZE + 2) * (SIZE + 2));
+        // memcpy(densityPrev, density, sizeof(float) * (SIZE + 2) * (SIZE + 2));
         // memcpy(velocityX, velocityPrevX, sizeof(float) * (SIZE + 2) * (SIZE + 2));
         // memcpy(velocityY, velocityPrevY, sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
@@ -213,10 +226,8 @@ int main()
         // Swap the screen buffers
         glfwSwapBuffers(window);
     }
-    // Properly de-allocate all resources once they've outlived their purpose
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
-    // Terminate GLFW, clearing any resources allocated by GLFW.
     glfwTerminate();
     return 0;
 }
@@ -231,21 +242,32 @@ void createGrid() {
             data[at(i, j)].id = numRects++;
             data[at(i, j)].hasVelocity = false;
             data[at(i, j)].velocity = glm::vec2(0.0f);
-            data[at(i, j)].leftTri.p1 = glm::vec3(x, y, 0.0f);
-            data[at(i, j)].leftTri.p2 = glm::vec3(x, y-cellSize, 0.0f);
-            data[at(i, j)].leftTri.p3 = glm::vec3(x+cellSize, y, 0.0f);
 
-            data[at(i, j)].rightTri.p1 = glm::vec3(x, y-cellSize, 0.0f);
-            data[at(i, j)].rightTri.p2 = glm::vec3(x+cellSize, y, 0.0f);
-            data[at(i, j)].rightTri.p3 = glm::vec3(x+cellSize, y-cellSize, 0.0f);
+            data[at(i, j)].hasDensity = false;
+            data[at(i, j)].density = 0.0f;
 
-            vertices.push_back(glm::vec3(x, y, 1.0f));
-            vertices.push_back(glm::vec3(x, y-cellSize, 1.0f));
-            vertices.push_back(glm::vec3(x+cellSize, y, 1.0f));
+            vertices.push_back(glm::vec3(x, y, 0.0f));
+            vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
+            vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
 
             vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
             vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
             vertices.push_back(glm::vec3(x+cellSize, y-cellSize, 0.0f));
+
+            // vertices.push_back(glm::vec2(x, y));
+            // vertices.push_back(glm::vec2(x, y-cellSize));
+            // vertices.push_back(glm::vec2(x+cellSize, y));
+
+            // vertices.push_back(glm::vec2(x, y-cellSize));
+            // vertices.push_back(glm::vec2(x+cellSize, y));
+            // vertices.push_back(glm::vec2(x+cellSize, y-cellSize));
+
+            densities.push_back(0.0f);
+            densities.push_back(0.0f);
+            densities.push_back(0.0f);
+            densities.push_back(0.0f);
+            densities.push_back(0.0f);
+            densities.push_back(0.0f);
 
             x += cellSize;
         }
@@ -254,11 +276,39 @@ void createGrid() {
     std::cout << "\n" << numRects << std::endl << std::endl;
 }
 
+void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
+    for (int i = 1; i <= SIZE; i++) {
+        for (int j = 1; j <= SIZE; j++) {
+            if (data[at(i,j)].hasDensity) {
+                densityPrev[at(i,j)] = data[at(i,j)].density;
+                // data[at(i,j)].hasDensity = false;
+                // data[at(i,j)].density = 0.0f;
+            }
+        }        
+    }
+
+    for (int i = 1; i <= SIZE; i++) {
+        for (int j = 1; j <= SIZE; j++) {
+            if (data[at(i,j)].hasVelocity) {
+                velocityPrevX[at(i,j)] = data[at(i,j)].velocity.x;
+                velocityPrevY[at(i,j)] = data[at(i,j)].velocity.y;
+            }
+        }        
+    }
+}
+
 void setDensity(float *density) {
     int i, j;
     int N = SIZE;
     FOR_EACH_CELL
-        float densityVal = density[at(i,j)];
+        int index = at(i,j);
+        float densityVal = density[index];
+        // densities[index] = densityVal;
+        // densities[index+1] = densityVal;
+        // densities[index+2] = densityVal;
+        // densities[index+3] = densityVal;
+        // densities[index+4] = densityVal;
+        // densities[index+5] = densityVal;
         vertices[at(i,j)*6].z = densityVal;
         vertices[at(i,j)*6+1].z = densityVal;
         vertices[at(i,j)*6+2].z = densityVal;
@@ -266,16 +316,78 @@ void setDensity(float *density) {
         vertices[at(i,j)*6+4].z = densityVal;
         vertices[at(i,j)*6+5].z = densityVal;
 
-        // data[at(i, j)].leftTri.p1.z = 0.0f;
-        // data[at(i, j)].leftTri.p2.z = 0.0f;
-        // data[at(i, j)].leftTri.p3.z = 0.0f;
-        // data[at(i, j)].rightTri.p1.z = 0.0f;
-        // data[at(i, j)].rightTri.p2.z = 0.0f;
-        // data[at(i, j)].rightTri.p3.z = 0.0f;
+        // data[at(i,j)].hasDensity = true;
+        // data[at(i,j)].density += densityVal;
+        data[at(i,j)].hasDensity = false;
+        data[at(i,j)].density = 0.0f;
+
+        // data[at(i,j)].hasVelocity = false;
+        // data[at(i,j)].velocity = glm::vec2(0.0f);
     END_FOR
-    
+
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_DYNAMIC_DRAW);
+}
+
+void addCellDensity(glm::vec3 cellClicked) {
+    int index = at(cellClicked.x, cellClicked.y);
+
+    int x = cellClicked.x;
+    int y = cellClicked.y;
+
+    if (x - 3 > 0 && x + 3 < WIDTH) {
+        if (y - 3 > 0 && y + 3 < HEIGHT) {
+            for (int i = -3; i < 3; i++) {
+                for (int j = -3; j < 3; j++) {
+                    index = at(x+i,j+y);
+                    data[index].hasDensity = true;
+                    data[index].density += densityColor;
+                }    
+            }
+        }
+    }
+}
+
+void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset) {
+    int index = at(cellClicked.x, cellClicked.y);
+    data[index].hasVelocity = true;
+    data[index].velocity = offset; 
+
+    // int x = cellClicked.x;
+    // int y = cellClicked.y;
+
+    // if (x - 5 > 0 && x + 5 < WIDTH) {
+    //     if (y - 5 > 0 && y + 5 < HEIGHT) {
+    //         for (int i = -5; i < 5; i++) {
+    //             for (int j = -5; j < 5; j++) {
+    //                 index = at(x+i,j+y);
+                    
+    //                 float dist = glm::sqrt((i)*(i) + (j)*(j));
+    //                 glm::vec2 force = dist * offset;
+
+    //                 data[index].hasVelocity = true;
+    //                 data[index].velocity = force;
+    //             }    
+    //         }
+    //     }
+    // } 
+}
+
+void addDensity(float *density) {
+    for (int i = (SIZE/4); i < SIZE/2 + (SIZE/4); i++) {
+        for (int j = (SIZE/4); j < SIZE/2 + (SIZE/4); j++) {
+            density[at(i, j)] = 1.0f;
+        }   
+    }
+}
+
+void resetDensity() {
+    for (int i = 1; i <= SIZE; i++) {
+        for (int j = 1; j <= SIZE; j++) {
+            data[at(i,j)].hasDensity = false;
+            data[at(i,j)].density = 0.0f;
+        }        
+    }
 }
 
 glm::vec3 getCell(glm::vec3 mousePos) {
@@ -300,97 +412,6 @@ void printVec(glm::vec3 toPrint, std::string vecName) {
     std::cout << std::endl;
 }
 
-void addCellDensity(glm::vec3 cellClicked) {
-    int index = at(cellClicked.x, cellClicked.y);
-    data[index].leftTri.p1.z = 1.0f;
-    data[index].leftTri.p2.z = 1.0f;
-    data[index].leftTri.p3.z = 1.0f;
-    data[index].rightTri.p1.z = 1.0f;
-    data[index].rightTri.p2.z = 1.0f;
-    data[index].rightTri.p3.z = 1.0f;
-}
-
-void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset) {
-    int index = at(cellClicked.x, cellClicked.y);
-    for(int i = 0 ; i < SIZE; i++) {
-        for(int j = 0 ; j < SIZE; j++) {
-            // index = at(i,j);
-        }
-    }
-    // data[index].hasVelocity = true;
-    // data[index].velocity = offset;  
-
-    int x = cellClicked.x; 
-    int y = cellClicked.y; 
-    if (x - 5 > 1 && x + 5 < WIDTH -1) {
-        if (y - 5 > 1 && y + 5 < HEIGHT -1) {
-            for (int i = x-5; i < x+5; i++) {
-                for (int j = y-5; j < y+5; j++) {
-                    index = at(i,j);
-                    data[index].hasVelocity = true;
-                    data[index].velocity = offset;  
-                }
-            }
-        }
-    }
-}
-
-void addDensity(float *density) {
-    for (int i = (SIZE/4); i < SIZE/2 + (SIZE/4); i++) {
-        for (int j = (SIZE/4); j < SIZE/2 + (SIZE/4); j++) {
-            density[at(i, j)] = 1.0f;
-        }   
-    }
-    // for (int i = 0; i < 40; i++) {
-    //     for (int j = 0; j < 40; j++) {
-    //         density[at(i, j)] = 1.0f;
-    //     }   
-    // }
-}
-
-void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
-
-    // std::cout << std::endl;
-    // std::cout << std::endl;
-    // std::cout << std::endl;
-
-    for (int i = 1; i <= SIZE; i++) {
-        for (int j = 1; j <= SIZE; j++) {
-            float right = (data[at(i,j)].rightTri.p1.z + 
-                data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
-            float left = (data[at(i,j)].leftTri.p1.z + 
-                data[at(i,j)].rightTri.p2.z + data[at(i,j)].rightTri.p3.z)/3;
-            float densityVal = (left + right) / 2;
-
-            densityPrev[at(i,j)] += densityVal;
-            // std::cout << densityVal << " ";
-        }        
-        // std::cout << std::endl;
-    }
-
-    for (int i = 1; i <= SIZE; i++) {
-        for (int j = 1; j <= SIZE; j++) {
-            if (data[at(i,j)].hasVelocity) {
-                velocityPrevX[at(i,j)] = data[at(i,j)].velocity.x;
-                velocityPrevY[at(i,j)] = data[at(i,j)].velocity.y;
-            }
-        }        
-    }
-}
-
-void resetDensity() {
-    for (int i = 1; i <= SIZE; i++) {
-        for (int j = 1; j <= SIZE; j++) {
-            data[at(i,j)].leftTri.p1.z = 0.0f;
-            data[at(i,j)].leftTri.p2.z = 0.0f;
-            data[at(i,j)].leftTri.p3.z = 0.0f;
-            data[at(i,j)].rightTri.p1.z = 0.0f;
-            data[at(i,j)].rightTri.p2.z = 0.0f;
-            data[at(i,j)].rightTri.p3.z = 0.0f;
-        }        
-    }
-}
-
 
 
 
@@ -409,6 +430,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         resetDensity();
     }
+    if (key == GLFW_KEY_K && action == GLFW_PRESS) {
+        densityColor += 0.1f;
+    }
+    if (key == GLFW_KEY_M && action == GLFW_PRESS) {
+        densityColor -= 0.1f;
+    }
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
@@ -418,12 +445,6 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
         currY = ypos;
         firstMouse = false;
     }
-    // else {
-    //     lastX = currX;
-    //     lastY = currY;
-    //     currX = xpos;
-    //     currY = xpos;
-    // }
     else {
         if (xpos <= WIDTH && xpos >=0 && ypos <= HEIGHT && ypos >=0) {
             GLfloat xoffset = xpos - lastX;
@@ -462,7 +483,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 
-
+// SOLVER STUFF
 
 void add_source(int N, float *x, float *s, float dt)
 {
@@ -550,214 +571,8 @@ advect ( N, 1, u, u0, u0, v0, dt ); advect ( N, 2, v, v0, u0, v0, dt );
 project ( N, u, v, u0, v0 );
 }
 
-// void add_source ( int N, float * x, float * s, float dt )
-// {
-//     int i, size=(N+2)*(N+2);
-//     for ( i=0 ; i<size ; i++ ) x[i] += dt*s[i];
-// }
-
-// void set_bnd ( int N, int b, float * x )
-// {
-//     int i;
-
-//     for ( i=1 ; i<=N ; i++ ) {
-//         x[IX(0  ,i)] = b==1 ? -x[IX(1,i)] : x[IX(1,i)];
-//         x[IX(N+1,i)] = b==1 ? -x[IX(N,i)] : x[IX(N,i)];
-//         x[IX(i,0  )] = b==2 ? -x[IX(i,1)] : x[IX(i,1)];
-//         x[IX(i,N+1)] = b==2 ? -x[IX(i,N)] : x[IX(i,N)];
-//     }
-//     x[IX(0  ,0  )] = 0.5f*(x[IX(1,0  )]+x[IX(0  ,1)]);
-//     x[IX(0  ,N+1)] = 0.5f*(x[IX(1,N+1)]+x[IX(0  ,N)]);
-//     x[IX(N+1,0  )] = 0.5f*(x[IX(N,0  )]+x[IX(N+1,1)]);
-//     x[IX(N+1,N+1)] = 0.5f*(x[IX(N,N+1)]+x[IX(N+1,N)]);
-// }
-
-// void lin_solve ( int N, int b, float * x, float * x0, float a, float c )
-// {
-//     int i, j, k;
-
-//     for ( k=0 ; k<20 ; k++ ) {
-//         FOR_EACH_CELL
-//             x[IX(i,j)] = (x0[IX(i,j)] + a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))/c;
-//         END_FOR
-//         set_bnd ( N, b, x );
-//     }
-// }
-
-// void diffuse ( int N, int b, float * x, float * x0, float diff, float dt )
-// {
-//     float a=dt*diff*N*N;
-//     lin_solve ( N, b, x, x0, a, 1+4*a );
-// }
-
-// void advect ( int N, int b, float * d, float * d0, float * u, float * v, float dt )
-// {
-//     int i, j, i0, j0, i1, j1;
-//     float x, y, s0, t0, s1, t1, dt0;
-
-//     dt0 = dt*N;
-//     FOR_EACH_CELL
-//         x = i-dt0*u[IX(i,j)]; y = j-dt0*v[IX(i,j)];
-//         if (x<0.5f) x=0.5f; if (x>N+0.5f) x=N+0.5f; i0=(int)x; i1=i0+1;
-//         if (y<0.5f) y=0.5f; if (y>N+0.5f) y=N+0.5f; j0=(int)y; j1=j0+1;
-//         s1 = x-i0; s0 = 1-s1; t1 = y-j0; t0 = 1-t1;
-//         d[IX(i,j)] = s0*(t0*d0[IX(i0,j0)]+t1*d0[IX(i0,j1)])+
-//                      s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
-//     END_FOR
-//     set_bnd ( N, b, d );
-// }
-
-// void project ( int N, float * u, float * v, float * p, float * div )
-// {
-//     int i, j;
-
-//     FOR_EACH_CELL
-//         div[IX(i,j)] = -0.5f*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)])/N;
-//         p[IX(i,j)] = 0;
-//     END_FOR 
-//     set_bnd ( N, 0, div ); set_bnd ( N, 0, p );
-
-//     lin_solve ( N, 0, p, div, 1, 4 );
-
-//     FOR_EACH_CELL
-//         u[IX(i,j)] -= 0.5f*N*(p[IX(i+1,j)]-p[IX(i-1,j)]);
-//         v[IX(i,j)] -= 0.5f*N*(p[IX(i,j+1)]-p[IX(i,j-1)]);
-//     END_FOR
-//     set_bnd ( N, 1, u ); set_bnd ( N, 2, v );
-// }
-
-// void dens_step ( int N, float * x, float * x0, float * u, float * v, float diff, float dt )
-// {
-//     add_source ( N, x, x0, dt );
-//     SWAP ( x0, x ); diffuse ( N, 0, x, x0, diff, dt );
-//     SWAP ( x0, x ); advect ( N, 0, x, x0, u, v, dt );
-// }
-
-// void vel_step ( int N, float * u, float * v, float * u0, float * v0, float visc, float dt )
-// {
-//     add_source ( N, u, u0, dt ); add_source ( N, v, v0, dt );
-//     SWAP ( u0, u ); diffuse ( N, 1, u, u0, visc, dt );
-//     SWAP ( v0, v ); diffuse ( N, 2, v, v0, visc, dt );
-//     project ( N, u, v, u0, v0 );
-//     SWAP ( u0, u ); SWAP ( v0, v );
-//     advect ( N, 1, u, u0, u0, v0, dt ); advect ( N, 2, v, v0, u0, v0, dt );
-//     project ( N, u, v, u0, v0 );
-// }
-// // FLUID SOLVER
-// void add_source(int N, float *x, float *s, float dt) {
-//     int size = (N + 2) * (N + 2);
-//     for (int i = 0; i < size; i++) {
-//         x[i] += dt * s[i];
-//     }
-// }
-
-// void set_bnd(int N, int b, float * x ) {
-//     int i;
-//     for ( i=1 ; i<=N ; i++ ) {
-//         x[at(0, i)]      = b==1 ? -x[at(1, i)] : x[at(1,i)];
-//         x[at(N+1, i)]    = b==1 ? -x[at(N, i)] : x[at(N,i)];
-//         x[at(i, 0)]      = b==2 ? -x[at(i, 1)] : x[at(i, 1)];
-//         x[at(i, N+1)]    = b==2 ? -x[at(i, N)] : x[at(i,N)];
-//     }
-//     x[at(0 ,0 )] = 0.5*(x[at(1,0 )]+x[at(0 ,1)]);
-//     x[at(0 ,N+1)] = 0.5*(x[at(1,N+1)]+x[at(0 ,N )]);
-//     x[at(N+1,0 )] = 0.5*(x[at(N,0 )]+x[at(N+1,1)]);
-//     x[at(N+1,N+1)] = 0.5*(x[at(N,N+1)]+x[at(N+1,N)]);
-// }
-
-// void diffuse(int N, int b, float *x, float *x0, float diff, float dt) {
-//     int i, j, k;
-//     float a = dt * diff * N * N;
-
-//     for (k = 0; k < 20; k++) {
-//         for(int i = 1; i <= N; i++) {
-//             for (int j = 0; j <= N; j++) {
-//                 float surrDensity = x[at(i-1,j)] + x[at(i+1,j)] + x[at(i,j-1)] + x[at(i,j+1)];
-//                 x[at(i,j)] = (x0[at(i,j)] + a * surrDensity) / (1 + 4*a);
-//             }
-//         }
-//         set_bnd(N,b,x);
-//     }
-// }
-
-// void advect(int N, int b, float *d, float *d0, float *u, float *v, float dt) {
-//     int i, j, i0, j0, i1, j1;
-//     float x, y, s0, t0, s1, t1, dt0;
-
-//     dt0 = dt * N;
-//     for(int i = 1; i <= N; i++) {
-//         for (int j = 0; j <= N; j++) {
-//             x = i-dt0*u[at(i,j)]; y = j-dt0*v[at(i,j)];
-//             if (x<0.5) x=0.5; if (x>N+0.5) x=N+0.5; i0=(int)x; i1=i0+1;
-//             if (y<0.5) y=0.5; if (y>N+0.5) y=N+0.5; j0=(int)y; j1=j0+1; 
-//             s1 = x-i0; s0 = 1-s1; 
-//             t1 = y-j0; t0 = 1-t1;
-//             d[at(i,j)] = s0*(t0*d0[at(i0,j0)]+t1*d0[at(i0,j1)])+s1*(t0*d0[at(i1,j0)]+t1*d0[at(i1,j1)]);
-//         }
-//     }
-//     set_bnd(N, b, d);
-// }
-
-// void project ( int N, float * u, float * v, float * p, float * div ) {
-//     int i, j, k;
-//     float h;
-
-//     h = 1.0 / N;
-//     for(int i = 1; i <= N; i++) {
-//         for (int j = 0; j <= N; j++) {
-//             div[at(i,j)] = -0.5*h*(u[at(i+1,j)]-u[at(i-1,j)]+v[at(i,j+1)]-v[at(i,j-1)]);
-//             p[at(i,j)] = 0;
-//         }
-//     }
-
-//     set_bnd(N, 0, div);
-//     set_bnd(N, 0, p);
-
-//     for (k = 0; k < 20; k++) {
-//         for(int i = 1; i <= N; i++) {
-//             for (int j = 0; j <= N; j++) {
-//                 p[at(i,j)] = (div[at(i,j)]+p[at(i-1,j)]+p[at(i+1,j)]+p[at(i,j-1)]+p[at(i,j+1)])/4;
-//             }
-//         }
-//         set_bnd(N, 0, p);
-//     }
-
-//     for(int i = 1; i <= N; i++) {
-//         for (int j = 0; j <= N; j++) {
-//         u[at(i,j)] -= 0.5*(p[at(i+1,j)]-p[at(i-1,j)])/h;
-//         v[at(i,j)] -= 0.5*(p[at(i,j+1)]-p[at(i,j-1)])/h;
-//     }
-// }
-//     set_bnd(N, 1, u); 
-//     set_bnd(N, 2, v);
-// }
-
-// void dens_step(int N, float * x, float * x0, float * u, float * v, float diff, float dt) {
-//     add_source(N, x, x0, dt);
-//     SWAP(x0, x); 
-//     diffuse(N, 0, x, x0, diff, dt);
-//     SWAP(x0, x);
-//     advect(N, 0, x, x0, u, v, dt);
-// }
-
-// void vel_step ( int N, float * u, float * v, float * u0, float * v0, float visc, float dt ) {
-//     add_source ( N, u, u0, dt ); add_source ( N, v, v0, dt );
-//     SWAP ( u0, u ); diffuse ( N, 1, u, u0, visc, dt );
-//     SWAP ( v0, v ); diffuse ( N, 2, v, v0, visc, dt );
-//     project ( N, u, v, u0, v0 );
-//     SWAP ( u0, u ); SWAP ( v0, v );
-//     advect ( N, 1, u, u0, u0, v0, dt ); advect ( N, 2, v, v0, u0, v0, dt ); project ( N, u, v, u0, v0 );
-// }
-
-
 // //adding sources to scene
 void addForce(float *velocityX, float *velocityY, float forceX, float forceY) {
-    // for (int i = 50; i < 100; i++) {
-    //     for (int j = 50; j < 100; j++) {
-    //         velocityX[at(i,j)] = 0.2f;
-    //         velocityY[at(i,j)] = 0.2f;
-    //     }
-    // }
     int i, j;
     int N = SIZE;
     FOR_EACH_CELL
