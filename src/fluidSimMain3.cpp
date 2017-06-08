@@ -30,7 +30,7 @@
 #include "constants.hpp"
 
 #define TIME 2000000
-#define SIZE 300
+#define SIZE 200
 #define at(i,j) ((i) + (SIZE + 2)*(j))
 // #define SWAP(x0,x) {float *tmp=x0;x0=x;x=tmp;}
 #define START 1
@@ -67,6 +67,7 @@ void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset);
 
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY);
 void setDensity(float *density);
+void setBunny();
 
 const GLuint WIDTH = 800, HEIGHT = 600;
 bool keys[1024]; 
@@ -74,7 +75,7 @@ bool firstMouse = true;
 GLfloat lastX = WIDTH / 2.0;
 GLfloat lastY = HEIGHT / 2.0;
 GLfloat currX, currY;
-bool go;
+bool mouseClicked, addDens, addVel;
 
 GLuint VBO, VAO;
 GLuint posBufID, densBufID;
@@ -113,22 +114,29 @@ int numRects = 0;
 
 bool step = true;
 bool pauseSim = false;
-float densityColor = 1.0f;
+float densityStrength = 50.0f;
 
-float visc = 1.0f;
-float diff = 1.0f;
-float dt = 8.0f;
+float visc = 0.0f;
+float diff = 0.0f;
+float dt = 0.1f;
+
+float *density;
+float *velocityX;
+float *velocityY;
+float *densityPrev;
+float *velocityPrevX;
+float *velocityPrevY;
 
 int main()
 {
     //allocated data
-    float *density = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
-    float *velocityX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
-    float *velocityY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
+    density = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
+    velocityX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
+    velocityY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
-    float *densityPrev = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
-    float *velocityPrevX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
-    float *velocityPrevY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
+    densityPrev = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
+    velocityPrevX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
+    velocityPrevY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
     memset(densityPrev, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
     memset(velocityPrevX, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
@@ -172,11 +180,6 @@ int main()
     glfwGetFramebufferSize(window, &width, &height);  
     glViewport(0, 0, width, height);
     
-    // GLuint bufs[2];
-    // glGenBuffers(2, bufs);
-    // posBufID = bufs[0];
-    // densBufID = bufs[1];
-
     glGenBuffers(1, &VBO);
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
@@ -185,16 +188,6 @@ int main()
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
-
-    // glEnableVertexAttribArray(0);
-    // glBindBuffer(GL_ARRAY_BUFFER, posBufID);
-    // glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec2), &vertices[0], GL_STATIC_DRAW);
-    // glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-
-    // glEnableVertexAttribArray(1);
-    // glBindBuffer(GL_ARRAY_BUFFER, densBufID);
-    // glBufferData(GL_ARRAY_BUFFER, densities.size() * sizeof(GLfloat), &densities[0], GL_DYNAMIC_DRAW);
-    // glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(0));
 
     // Generate a buffer for the indices
     glGenBuffers(1, &elementbuffer);
@@ -208,7 +201,7 @@ int main()
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         
     addDensity(densityPrev);
-
+    // setBunny();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -225,6 +218,7 @@ int main()
             if (step) {
                 vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
                 dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);            
+                // printArr(velocityX, "velPrev");
             }
             setDensity(density);
         }
@@ -261,19 +255,11 @@ void createGrid() {
         x = left;
         for (int j = 0; j <= SIZE + 1; j++) {
             data[at(i, j)].id = numRects++;
-            data[at(i, j)].hasVelocity = false;
+            data[at(i, j)].hasVelocity = true;
             data[at(i, j)].velocity = glm::vec2(0.0f);
 
             data[at(i, j)].hasDensity = false;
             data[at(i, j)].density = 0.0f;
-
-            // vertices.push_back(glm::vec3(x, y, 0.0f));
-            // vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
-            // vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
-
-            // vertices.push_back(glm::vec3(x, y-cellSize, 0.0f));
-            // vertices.push_back(glm::vec3(x+cellSize, y, 0.0f));
-            // vertices.push_back(glm::vec3(x+cellSize, y-cellSize, 0.0f));
 
             x += cellSize;
         }
@@ -315,20 +301,20 @@ void createGrid() {
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
-            if (data[at(i,j)].hasDensity) {
+            // if (data[at(i,j)].hasDensity) {
                 densityPrev[at(i,j)] = data[at(i,j)].density;
                 // data[at(i,j)].hasDensity = false;
                 // data[at(i,j)].density = 0.0f;
-            }
+            // }
         }        
     }
 
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
-            if (data[at(i,j)].hasVelocity) {
+            // if (data[at(i,j)].hasVelocity) {
                 velocityPrevX[at(i,j)] = data[at(i,j)].velocity.x;
                 velocityPrevY[at(i,j)] = data[at(i,j)].velocity.y;
-            }
+            // }
         }        
     }
 }
@@ -354,13 +340,15 @@ void setDensity(float *density) {
         vertices[idx3].z = densityVal;
         vertices[idx4].z = densityVal;
 
+        // probably wrong
         // data[at(i,j)].hasDensity = true;
-        // data[at(i,j)].density += densityVal;
-        // data[at(i,j)].hasDensity = false;
-        // data[at(i,j)].density = 0.0f;
+        // data[at(i,j)].density = densityVal;
 
-        // data[at(i,j)].hasVelocity = false;
-        // data[at(i,j)].velocity = glm::vec2(0.0f);
+        data[at(i,j)].hasDensity = false;
+        data[at(i,j)].density = 0.0f;
+
+        data[at(i,j)].hasVelocity = false;
+        data[at(i,j)].velocity = glm::vec2(0.0f);
     END_FOR
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -372,8 +360,7 @@ void addCellDensity(glm::vec3 cellClicked) {
 
     int x = cellClicked.x;
     int y = cellClicked.y;
-    data[index].hasDensity = true;
-    data[index].density += densityColor;
+
 
     if (x - 2 > 0 && x + 2 < WIDTH) {
         if (y - 2 > 0 && y + 2 < HEIGHT) {
@@ -381,7 +368,7 @@ void addCellDensity(glm::vec3 cellClicked) {
                 for (int j = -2; j < 2; j++) {
                     index = at(x+i,j+y);
                     data[index].hasDensity = true;
-                    data[index].density += densityColor;
+                    data[index].density = densityStrength;
                 }    
             }
         }
@@ -391,26 +378,7 @@ void addCellDensity(glm::vec3 cellClicked) {
 void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset) {
     int index = at(cellClicked.x, cellClicked.y);
     data[index].hasVelocity = true;
-    data[index].velocity = offset; 
-
-    // int x = cellClicked.x;
-    // int y = cellClicked.y;
-
-    // if (x - 5 > 0 && x + 5 < WIDTH) {
-    //     if (y - 5 > 0 && y + 5 < HEIGHT) {
-    //         for (int i = -5; i < 5; i++) {
-    //             for (int j = -5; j < 5; j++) {
-    //                 index = at(x+i,j+y);
-                    
-    //                 float dist = glm::sqrt((i)*(i) + (j)*(j));
-    //                 glm::vec2 force = dist * offset;
-
-    //                 data[index].hasVelocity = true;
-    //                 data[index].velocity = force;
-    //             }    
-    //         }
-    //     }
-    // } 
+    data[index].velocity = offset;  
 }
 
 void addDensity(float *density) {
@@ -438,8 +406,8 @@ glm::vec3 getCell(glm::vec3 mousePos) {
     int xCoord = mousePos.x / screenCellSizeX;
     int yCoord = mousePos.y / screenCellSizeY;
     
-    cell.x = xCoord;
-    cell.y = yCoord;
+    cell.x = xCoord + 1;
+    cell.y = yCoord + 1;
     
     return cell;
 }
@@ -467,17 +435,37 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_P && action == GLFW_PRESS) {
         pauseSim = !pauseSim;
     }
+
     if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         resetDensity();
     }
     if (key == GLFW_KEY_K && action == GLFW_PRESS) {
-        densityColor += 0.1f;
+        diff += 0.0001f;
     }
     if (key == GLFW_KEY_M && action == GLFW_PRESS) {
-        densityColor -= 0.1f;
+        diff -= 0.0001f;
+    }
+
+    if (key == GLFW_KEY_V) {
+        if (action == GLFW_PRESS) {
+            addVel = true;
+        }
+        if (action == GLFW_RELEASE) {
+            addVel = false;
+        }
+    }
+
+    if (key == GLFW_KEY_D) {
+        if (action == GLFW_PRESS) {
+            addDens = true;
+        }
+        if (action == GLFW_RELEASE) {
+            addDens = false;
+        }
     }
 }
 
+glm::vec2 firstClick, lastClick;
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
     if(firstMouse)
     {
@@ -492,32 +480,86 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
             lastX = xpos;
             lastY = ypos;
 
-            glm::vec2 offset = glm::normalize(glm::vec2(xoffset, -yoffset));
+            xoffset -= firstClick.x;
+            yoffset = firstClick.y - yoffset;
+
+            glm::vec2 offset = glm::normalize(glm::vec2(xoffset, yoffset));
+            offset *= 30;
             glm::vec3 cellClicked = getCell(glm::vec3(lastX, lastY, 0.0f));
-            if (go) {
-                addCellDensity(cellClicked);
-                // printVec(cellClicked, "cellClicked");            
-            }
-            else {            
-                addCellVelocity(cellClicked, offset);
-                // printVec(glm::vec3(offset, 0.0f), "offset");            
-            }
+            // if (mouseClicked) {
+                if (addDens) {
+                    addCellDensity(cellClicked);
+                    // printVec(cellClicked, "cellClicked");            
+                }
+            // }
+            // else {
+                if (addVel) {            
+                    addCellVelocity(cellClicked, offset);
+                    printVec(glm::vec3(offset, 0.0f), "offset");            
+                }   
+            // }
         }
     }
 } 
 
+bool prevMouseState = false;
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+    prevMouseState = mouseClicked;
     if (state == GLFW_PRESS) {
-        go = true;
-
+        mouseClicked = true;
     }
     else {
-        go = false;
-    }   
+        mouseClicked = false;
+    }
+
+    if (prevMouseState != mouseClicked) {
+        if (mouseClicked) {
+            firstClick = glm::vec2(lastX, lastY);
+            std::cout << "mouse just clicked" << std::endl;
+            printVec(glm::vec3(firstClick, 0.0f), "   firstClick");
+        }
+        else {
+            lastClick = glm::vec2(lastX, lastY);
+            std::cout << "mouse just released" << std::endl;
+            printVec(glm::vec3(lastClick, 0.0f), "   lastClick");
+        }
+    }
 }
 
 
+
+// OBJ
+void setBunny() {
+    const char *path = "../resources/bunny.obj";
+
+    FILE * file = fopen(path, "r");
+    if( file == NULL ){
+        printf("Impossible to open the file !\n");
+        exit(0);
+    }
+    while( 1 ){
+        char lineHeader[128];
+        // read the first word of the line
+        int res = fscanf(file, "%s", lineHeader);
+        if (res == EOF)
+            break; // EOF = End Of File. Quit the loop.
+
+        if ( strcmp( lineHeader, "v" ) == 0 ){
+            glm::vec3 vertex;
+            fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z );
+            vertex *= 20;
+            vertex += 5;
+            printVec(vertex, "vertex");
+            data[at((int)vertex.x, (int)vertex.y)].hasDensity = true;
+            data[at((int)vertex.x, (int)vertex.y)].density = 1.0f;
+        }
+        if ( strcmp( lineHeader, "vn" ) == 0 ){
+            glm::vec3 normal;
+            fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z );
+        }
+    }
+}
 
 
 
@@ -659,14 +701,14 @@ void addForceAwayFromCenter(float *velocityX, float *velocityY) {
 // }
 
 // //debugging
-// void printArr(float *arr, std::string arrName) {
-//     std::cout << arrName << ": " << std::endl;
-//     for (int j = START; j < END; j++) {
-//         std::cout << "j = "<< j << ": ";
-//         for (int i = START; i < END; i++) {
-//             std::cout << arr[at(i, j)] << " ";
-//         }
-//         std::cout << std::endl;
-//     }
-//     std::cout << std::endl;
-// }
+void printArr(float *arr, std::string arrName) {
+    std::cout << arrName << ": " << std::endl;
+    for (int j = START; j < END; j++) {
+        std::cout << "j = "<< j << ": ";
+        for (int i = START; i < END; i++) {
+            std::cout << arr[at(i, j)] << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
