@@ -31,14 +31,9 @@
 
 #define TIME 2000000
 #define SIZE 200
-#define at(i,j) ((i) + (SIZE + 2)*(j))
-// #define SWAP(x0,x) {float *tmp=x0;x0=x;x=tmp;}
 #define START 1
 #define END SIZE + 1
-
-// #define IX(i,j) ((i)+(N+2)*(j))
-// #define FOR_EACH_CELL for ( i=1 ; i<=N ; i++ ) { for ( j=1 ; j<=N ; j++ ) {
-// #define END_FOR }}
+#define at(i,j) ((i) + (SIZE + 2)*(j))
 #define IX(i,j) ((i)+(N+2)*(j))
 #define SWAP(x0,x) {float * tmp=x0;x0=x;x=tmp;}
 #define FOR_EACH_CELL for ( i=1 ; i<=N ; i++ ) {\
@@ -48,11 +43,11 @@ for ( j=1 ; j<=N ; j++ ) {
 void dens_step(int N, float * x, float * x0, float * u, float * v, float diff, float dt);
 void vel_step(int N, float * u, float * v, float * u0, float * v0, float visc, float dt);
 
-void printArr(float *arr, std::string arrName);
-void drawDensity(float *density);
 void addDensity(float *density);
 void addForce(float *velocityX, float *velocityY, float forceX, float forceY);
 void addForceAwayFromCenter(float *velocityX, float *velocityY);
+void printArr(float *arr, std::string arrName);
+void drawDensity(float *density);
 Image img(SIZE + 2, SIZE + 2);
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
@@ -69,6 +64,9 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY);
 void setDensity(float *density);
 void setBunny();
 
+void bindBuffers();
+void initWindow();
+
 const GLuint WIDTH = 800, HEIGHT = 600;
 bool keys[1024]; 
 bool firstMouse = true;
@@ -81,20 +79,9 @@ GLuint VBO, VAO;
 GLuint posBufID, densBufID;
 GLuint elementbuffer;
 std::vector<glm::vec3> vertices;
-std::vector<GLfloat> densities;
 std::vector<unsigned int> indices;
 
-struct Triangle {
-    glm::vec3 p1;
-    glm::vec3 p2;
-    glm::vec3 p3;
-};
-
 struct Rect {
-    int id;
-    Triangle leftTri;
-    Triangle rightTri;
-
     bool hasVelocity;
     glm::vec2 velocity;
     bool hasDensity;
@@ -114,9 +101,9 @@ int numRects = 0;
 
 bool step = true;
 bool pauseSim = false;
-float densityStrength = 50.0f;
+float densityStrength = 100.0f;
 
-float visc = 0.0f;
+float visc = 10.0f;
 float diff = 0.0f;
 float dt = 0.1f;
 
@@ -127,9 +114,12 @@ float *densityPrev;
 float *velocityPrevX;
 float *velocityPrevY;
 
+GLFWwindow* window;
+Shader *shader;
+
 int main()
 {
-    //allocated data
+    //allocate data
     density = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
     velocityX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
     velocityY = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
@@ -142,66 +132,14 @@ int main()
     memset(velocityPrevX, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
     memset(velocityPrevY, 0, sizeof(float) * (SIZE + 2) * (SIZE + 2));
 
-    glfwInit();
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-
-    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "LearnOpenGL", nullptr, nullptr);    
-    if (window == nullptr)
-    {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-    glfwSetKeyCallback(window, key_callback);
-    glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-
-    glewExperimental = GL_TRUE;
-
-    if (glewInit() != GLEW_OK)
-    {
-        std::cout << "Failed to initialize GLEW" << std::endl;
-        return -1;
-    }    
-
-    Shader *shader = new Shader(SHADER_PATH "waterSim.vert", SHADER_PATH "waterSim.frag");
-
+    initWindow();
     createGrid();
+    bindBuffers();
 
-    glDisable(GL_DEPTH_TEST);
-
-    // Define the viewport dimensions
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);  
-    glViewport(0, 0, width, height);
-    
-    glGenBuffers(1, &VBO);
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
-
-    glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
-
-    // Generate a buffer for the indices
-    glGenBuffers(1, &elementbuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    shader = new Shader(SHADER_PATH "waterSim.vert", SHADER_PATH "waterSim.frag");
 
     // Uncommenting this call will result in wireframe polygons.
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        
-    addDensity(densityPrev);
-    // setBunny();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -210,7 +148,6 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // addForce(velocityPrevX, velocityPrevY, 2, 2);
         // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
 
         if (!pauseSim) {
@@ -218,21 +155,14 @@ int main()
             if (step) {
                 vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
                 dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);            
-                // printArr(velocityX, "velPrev");
             }
             setDensity(density);
         }
 
-        // memcpy(densityPrev, density, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-        // memcpy(velocityX, velocityPrevX, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-        // memcpy(velocityY, velocityPrevY, sizeof(float) * (SIZE + 2) * (SIZE + 2));
-
-        // Draw our first triangle
         shader->use();
         glBindVertexArray(VAO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
         glDrawElements(GL_TRIANGLE_STRIP, indices.size(), GL_UNSIGNED_INT, 0);
-        // glDrawArrays(GL_TRIANGLES, 0, numRects * 6);
         glBindVertexArray(0);
 
         // Swap the screen buffers
@@ -246,7 +176,6 @@ int main()
 
 const float left = -1.0f, right = 1.0f;
 const float bot = -1.0f, top = 1.0f;
-
 void createGrid() {
     float cellSize = 2.0f / SIZE;
     float x = 0.0;
@@ -254,7 +183,6 @@ void createGrid() {
     for (int i = 0; i <= SIZE + 1; i++) {
         x = left;
         for (int j = 0; j <= SIZE + 1; j++) {
-            data[at(i, j)].id = numRects++;
             data[at(i, j)].hasVelocity = true;
             data[at(i, j)].velocity = glm::vec2(0.0f);
 
@@ -303,8 +231,6 @@ void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
         for (int j = 1; j <= SIZE; j++) {
             // if (data[at(i,j)].hasDensity) {
                 densityPrev[at(i,j)] = data[at(i,j)].density;
-                // data[at(i,j)].hasDensity = false;
-                // data[at(i,j)].density = 0.0f;
             // }
         }        
     }
@@ -339,10 +265,6 @@ void setDensity(float *density) {
         vertices[idx2].z = densityVal;
         vertices[idx3].z = densityVal;
         vertices[idx4].z = densityVal;
-
-        // probably wrong
-        // data[at(i,j)].hasDensity = true;
-        // data[at(i,j)].density = densityVal;
 
         data[at(i,j)].hasDensity = false;
         data[at(i,j)].density = 0.0f;
@@ -410,14 +332,6 @@ glm::vec3 getCell(glm::vec3 mousePos) {
     cell.y = yCoord + 1;
     
     return cell;
-}
-
-void printVec(glm::vec3 toPrint, std::string vecName) {
-    std::cout << vecName << ": ";
-    std::cout << toPrint.x << " ";
-    std::cout << toPrint.y << " ";
-    std::cout << toPrint.z << " ";
-    std::cout << std::endl;
 }
 
 
@@ -658,7 +572,6 @@ void addForce(float *velocityX, float *velocityY, float forceX, float forceY) {
     int i, j;
     int N = SIZE;
     FOR_EACH_CELL
-
         velocityX[at(i,j)] = forceX;
         velocityY[at(i,j)] = forceY;
     END_FOR
@@ -678,27 +591,27 @@ void addForceAwayFromCenter(float *velocityX, float *velocityY) {
 }
 
 // // Drawing the density
-// void drawDensity(float *density) {
-//     color_t color;
-//     color.r = 0.0f;
-//     color.g = 0.0f;
-//     color.b = 0.0f;
-//     color.f = 1.0f;
-//     std::cout << std::endl;
-//     for (int j = START; j < END; j++) {
-//         for (int i = START; i < END; i++) {
-//             float val = density[at(i,j)];
-//             color.r = val;
-//             color.g = val;
-//             color.b = val;
-//             img.pixel(i, j, color);
-//         }
-//     }
-//     img.WriteTga((char *) "density.tga", true);
-//     system("open density.tga");
-//     usleep(TIME);
-//     system("rm density.tga");
-// }
+void drawDensity(float *density) {
+    color_t color;
+    color.r = 0.0f;
+    color.g = 0.0f;
+    color.b = 0.0f;
+    color.f = 1.0f;
+    std::cout << std::endl;
+    for (int j = START; j < END; j++) {
+        for (int i = START; i < END; i++) {
+            float val = density[at(i,j)];
+            color.r = val;
+            color.g = val;
+            color.b = val;
+            img.pixel(i, j, color);
+        }
+    }
+    img.WriteTga((char *) "density.tga", true);
+    system("open density.tga");
+    usleep(TIME);
+    system("rm density.tga");
+}
 
 // //debugging
 void printArr(float *arr, std::string arrName) {
@@ -712,3 +625,64 @@ void printArr(float *arr, std::string arrName) {
     }
     std::cout << std::endl;
 }
+
+void bindBuffers() {
+    glDisable(GL_DEPTH_TEST);
+    glGenBuffers(1, &VBO);
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
+
+    // Generate a buffer for the indices
+    glGenBuffers(1, &elementbuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void initWindow() {
+    glfwInit();
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+
+    window = glfwCreateWindow(WIDTH, HEIGHT, "LearnOpenGL", nullptr, nullptr);    
+    if (window == nullptr)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+    glewExperimental = GL_TRUE;
+
+    if (glewInit() != GLEW_OK)
+    {
+        std::cout << "Failed to initialize GLEW" << std::endl;
+    }    
+
+    // Define the viewport dimensions
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);  
+    glViewport(0, 0, width, height);
+}
+
+void printVec(glm::vec3 toPrint, std::string vecName) {
+    std::cout << vecName << ": ";
+    std::cout << toPrint.x << " ";
+    std::cout << toPrint.y << " ";
+    std::cout << toPrint.z << " ";
+    std::cout << std::endl;
+}
+
