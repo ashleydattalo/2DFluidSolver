@@ -53,27 +53,26 @@ Image img(SIZE + 2, SIZE + 2);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void processInput();
+bool inBounds(glm::vec2 mousePos);
 
-glm::vec3 getCell(glm::vec3 mousePos);
-void printVec(glm::vec3 toPrint, std::string vecName);
+glm::vec2 getCell(glm::vec3 mousePos);
+void addDensityToCell(glm::vec2 mousePos);
+void addVelocityToCell(glm::vec2 newMousePos, glm::vec2 lastMousePos);
+
 void createGrid();
-void addCellDensity(glm::vec3 cellClicked);
-void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset);
-
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY);
 void setDensity(float *density);
-void setBunny();
 
-void bindBuffers();
 void initWindow();
+void bindBuffers();
+void setBunny();
+void printVec(glm::vec3 toPrint, std::string vecName);
+
+GLFWwindow* window;
+Shader *shader;
 
 const GLuint WIDTH = 800, HEIGHT = 600;
-bool keys[1024]; 
-bool firstMouse = true;
-GLfloat lastX = WIDTH / 2.0;
-GLfloat lastY = HEIGHT / 2.0;
-GLfloat currX, currY;
-bool mouseClicked, addDens, addVel;
 
 GLuint VBO, VAO;
 GLuint posBufID, densBufID;
@@ -82,10 +81,10 @@ std::vector<glm::vec3> vertices;
 std::vector<unsigned int> indices;
 
 struct Rect {
-    bool hasVelocity;
-    glm::vec2 velocity;
     bool hasDensity;
+    bool hasVelocity;
     float density;
+    glm::vec2 velocity;
 };
 
 struct IndicesStruct {
@@ -97,13 +96,12 @@ struct IndicesStruct {
 
 Rect data[(SIZE + 2) * (SIZE + 2)];
 IndicesStruct indicesArr[SIZE][SIZE];
-int numRects = 0;
 
 bool step = true;
 bool pauseSim = false;
 float densityStrength = 100.0f;
 
-float visc = 10.0f;
+float visc = 0.0f;
 float diff = 0.0f;
 float dt = 0.1f;
 
@@ -113,9 +111,6 @@ float *velocityY;
 float *densityPrev;
 float *velocityPrevX;
 float *velocityPrevY;
-
-GLFWwindow* window;
-Shader *shader;
 
 int main()
 {
@@ -144,6 +139,7 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+        processInput();
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -174,30 +170,11 @@ int main()
     return 0;
 }
 
-const float left = -1.0f, right = 1.0f;
-const float bot = -1.0f, top = 1.0f;
 void createGrid() {
     float cellSize = 2.0f / SIZE;
-    float x = 0.0;
-    float y = top;
-    for (int i = 0; i <= SIZE + 1; i++) {
-        x = left;
-        for (int j = 0; j <= SIZE + 1; j++) {
-            data[at(i, j)].hasVelocity = true;
-            data[at(i, j)].velocity = glm::vec2(0.0f);
-
-            data[at(i, j)].hasDensity = false;
-            data[at(i, j)].density = 0.0f;
-
-            x += cellSize;
-        }
-        y -= cellSize;
-    }
-    std::cout << "\n" << numRects << std::endl << std::endl;
-
-    int sizePlus1 = SIZE + 1;
-
-    y = top;
+    float left = -1.0f, top = 1.0f;
+    float x = left, y = top;
+    
     for (int j = 0; j <= SIZE; j++) {
         x = left;
         for (int i = 0; i <= SIZE; i++) {
@@ -207,6 +184,7 @@ void createGrid() {
         y -= cellSize;
     }
 
+    int sizePlus1 = SIZE + 1;
     for (int j = 0; j < SIZE; j++) {
         for (int i = 0; i < SIZE; i++) {
             indices.push_back(j * sizePlus1 + i);
@@ -229,18 +207,14 @@ void createGrid() {
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY) {
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
-            // if (data[at(i,j)].hasDensity) {
-                densityPrev[at(i,j)] = data[at(i,j)].density;
-            // }
+            densityPrev[at(i,j)] = data[at(i,j)].density;
         }        
     }
 
     for (int i = 1; i <= SIZE; i++) {
         for (int j = 1; j <= SIZE; j++) {
-            // if (data[at(i,j)].hasVelocity) {
-                velocityPrevX[at(i,j)] = data[at(i,j)].velocity.x;
-                velocityPrevY[at(i,j)] = data[at(i,j)].velocity.y;
-            // }
+            velocityPrevX[at(i,j)] = data[at(i,j)].velocity.x;
+            velocityPrevY[at(i,j)] = data[at(i,j)].velocity.y;
         }        
     }
 }
@@ -256,7 +230,6 @@ void setDensity(float *density) {
         int idx2 = indicesArr[i-1][j-1].idx2;
         int idx3 = indicesArr[i-1][j-1].idx3;
         int idx4 = indicesArr[i-1][j-1].idx4;
-
 
         vertices[idx1].z = densityVal;
         vertices[idx2].z = densityVal;
@@ -277,51 +250,8 @@ void setDensity(float *density) {
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_DYNAMIC_DRAW);
 }
 
-void addCellDensity(glm::vec3 cellClicked) {
-    int index = at(cellClicked.x, cellClicked.y);
-
-    int x = cellClicked.x;
-    int y = cellClicked.y;
-
-
-    if (x - 2 > 0 && x + 2 < WIDTH) {
-        if (y - 2 > 0 && y + 2 < HEIGHT) {
-            for (int i = -2; i < 2; i++) {
-                for (int j = -2; j < 2; j++) {
-                    index = at(x+i,j+y);
-                    data[index].hasDensity = true;
-                    data[index].density = densityStrength;
-                }    
-            }
-        }
-    }
-}
-
-void addCellVelocity(glm::vec3 cellClicked, glm::vec2 offset) {
-    int index = at(cellClicked.x, cellClicked.y);
-    data[index].hasVelocity = true;
-    data[index].velocity = offset;  
-}
-
-void addDensity(float *density) {
-    for (int i = (SIZE/4); i < SIZE/2 + (SIZE/4); i++) {
-        for (int j = (SIZE/4); j < SIZE/2 + (SIZE/4); j++) {
-            density[at(i, j)] = 1.0f;
-        }   
-    }
-}
-
-void resetDensity() {
-    for (int i = 1; i <= SIZE; i++) {
-        for (int j = 1; j <= SIZE; j++) {
-            data[at(i,j)].hasDensity = false;
-            data[at(i,j)].density = 0.0f;
-        }        
-    }
-}
-
-glm::vec3 getCell(glm::vec3 mousePos) {
-    glm::vec3 cell;
+glm::vec2 getCell(glm::vec2 mousePos) {
+    glm::vec2 cell;
     float screenCellSizeX = WIDTH / SIZE;
     float screenCellSizeY = HEIGHT / SIZE;
 
@@ -334,113 +264,117 @@ glm::vec3 getCell(glm::vec3 mousePos) {
     return cell;
 }
 
+void addDensityToCell(glm::vec2 mousePos) {
+    glm::vec2 cell = getCell(mousePos);
+    int index = at(cell.x, cell.y);
+
+    int x = cell.x;
+    int y = cell.y;
+
+    if (x - 2 > 0 && x + 2 < WIDTH) {
+        if (y - 2 > 0 && y + 2 < HEIGHT) {
+            for (int i = -2; i < 2; i++) {
+                for (int j = -2; j < 2; j++) {
+                    index = at(x+i,j+y);
+                    data[index].density = densityStrength;
+                }    
+            }
+        }
+    }
+}
+
+void deleteDensityFromCell(glm::vec2 mousePos) {
+    glm::vec2 cell = getCell(mousePos);
+    int index = at(cell.x, cell.y);
+
+    int x = cell.x;
+    int y = cell.y;
+
+    int offset = 1;
+    if (inBounds(mousePos + glm::vec2(offset)) && inBounds(mousePos - glm::vec2(offset))) {   
+        for (int i = -offset; i < offset; i++) {
+            for (int j = -offset; j < offset; j++) {
+                if (x+i <= SIZE && j+y <= SIZE) {
+                    index = at(x+i,j+y);
+                    data[index].density -= densityStrength;
+                }
+            }    
+        }
+    }
+}
+
+void addVelocityToCell(glm::vec2 newMousePos, glm::vec2 lastMousePos) {
+    glm::vec2 cell = getCell(newMousePos);
+    int index = at(cell.x, cell.y);
+    
+    glm::vec2 offset = newMousePos - lastMousePos;
+    offset *= 30;
+    
+    data[index].hasVelocity = true;
+    data[index].velocity = offset;  
+}
 
 
+bool keys[1024]; 
+bool firstMouse = true;
+bool mouseClicked = false;
+glm::vec2 currMousePos, oldMousePos;
 
-// MOUSE
 // Is called whenever a key is pressed/released via GLFW
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
-    if (key == GLFW_KEY_S && action == GLFW_PRESS) {
-        step = !step;
-    }
-    if (key == GLFW_KEY_P && action == GLFW_PRESS) {
-        pauseSim = !pauseSim;
-    }
 
-    if (key == GLFW_KEY_R && action == GLFW_PRESS) {
-        resetDensity();
-    }
-    if (key == GLFW_KEY_K && action == GLFW_PRESS) {
-        diff += 0.0001f;
-    }
-    if (key == GLFW_KEY_M && action == GLFW_PRESS) {
-        diff -= 0.0001f;
-    }
-
-    if (key == GLFW_KEY_V) {
-        if (action == GLFW_PRESS) {
-            addVel = true;
-        }
-        if (action == GLFW_RELEASE) {
-            addVel = false;
-        }
-    }
-
-    if (key == GLFW_KEY_D) {
-        if (action == GLFW_PRESS) {
-            addDens = true;
-        }
-        if (action == GLFW_RELEASE) {
-            addDens = false;
-        }
-    }
+    if(action == GLFW_PRESS)
+        keys[key] = true;
+    else if(action == GLFW_RELEASE)
+        keys[key] = false; 
 }
 
-glm::vec2 firstClick, lastClick;
+// called when ever the mouse moves
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
     if(firstMouse)
     {
-        currX = xpos;
-        currY = ypos;
+        currMousePos.x = xpos;
+        currMousePos.y = ypos;
         firstMouse = false;
     }
-    else {
-        if (xpos <= WIDTH && xpos >=0 && ypos <= HEIGHT && ypos >=0) {
-            GLfloat xoffset = xpos - lastX;
-            GLfloat yoffset = lastY - ypos; 
-            lastX = xpos;
-            lastY = ypos;
-
-            xoffset -= firstClick.x;
-            yoffset = firstClick.y - yoffset;
-
-            glm::vec2 offset = glm::normalize(glm::vec2(xoffset, yoffset));
-            offset *= 30;
-            glm::vec3 cellClicked = getCell(glm::vec3(lastX, lastY, 0.0f));
-            // if (mouseClicked) {
-                if (addDens) {
-                    addCellDensity(cellClicked);
-                    // printVec(cellClicked, "cellClicked");            
-                }
-            // }
-            // else {
-                if (addVel) {            
-                    addCellVelocity(cellClicked, offset);
-                    printVec(glm::vec3(offset, 0.0f), "offset");            
-                }   
-            // }
-        }
-    }
+    oldMousePos = currMousePos;
+    currMousePos.x = xpos;
+    currMousePos.y = ypos;
 } 
 
-bool prevMouseState = false;
+// called when ever the mouse is clicked
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-    prevMouseState = mouseClicked;
     if (state == GLFW_PRESS) {
         mouseClicked = true;
     }
     else {
         mouseClicked = false;
     }
+}
 
-    if (prevMouseState != mouseClicked) {
-        if (mouseClicked) {
-            firstClick = glm::vec2(lastX, lastY);
-            std::cout << "mouse just clicked" << std::endl;
-            printVec(glm::vec3(firstClick, 0.0f), "   firstClick");
+void processInput() {
+    if (inBounds(currMousePos) && inBounds(oldMousePos)) {
+        if (keys[GLFW_KEY_D]) {
+            addDensityToCell(currMousePos);
         }
-        else {
-            lastClick = glm::vec2(lastX, lastY);
-            std::cout << "mouse just released" << std::endl;
-            printVec(glm::vec3(lastClick, 0.0f), "   lastClick");
+        if (keys[GLFW_KEY_V]) {
+            addVelocityToCell(currMousePos, oldMousePos);
+        }
+        if (keys[GLFW_KEY_C]) {
+            deleteDensityFromCell(currMousePos);
         }
     }
 }
 
+bool inBounds(glm::vec2 mousePos) {
+    int x = mousePos.x;
+    int y = mousePos.y;
+    return x <= WIDTH && x >=0 && y <= HEIGHT && y>=0;
+}
 
 
 // OBJ
@@ -475,7 +409,21 @@ void setBunny() {
     }
 }
 
+void addDensity(float *density) {
+    for (int i = (SIZE/4); i < SIZE/2 + (SIZE/4); i++) {
+        for (int j = (SIZE/4); j < SIZE/2 + (SIZE/4); j++) {
+            density[at(i, j)] = 1.0f;
+        }   
+    }
+}
 
+void resetDensity() {
+    for (int i = 1; i <= SIZE; i++) {
+        for (int j = 1; j <= SIZE; j++) {
+            data[at(i,j)].density = 0.0f;
+        }        
+    }
+}
 
 
 
