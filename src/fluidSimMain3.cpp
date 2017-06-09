@@ -66,8 +66,9 @@ void setDensity(float *density);
 
 void initWindow();
 void bindBuffers();
-void setBunny();
+void drawBunny(glm::vec2 offset, float bunnySize);
 void printVec(glm::vec3 toPrint, std::string vecName);
+void printVec(glm::vec2 toPrint, std::string vecName);
 
 GLFWwindow* window;
 Shader *shader;
@@ -81,8 +82,6 @@ std::vector<glm::vec3> vertices;
 std::vector<unsigned int> indices;
 
 struct Rect {
-    bool hasDensity;
-    bool hasVelocity;
     float density;
     glm::vec2 velocity;
 };
@@ -100,6 +99,7 @@ IndicesStruct indicesArr[SIZE][SIZE];
 bool step = true;
 bool pauseSim = false;
 float densityStrength = 100.0f;
+float force = 10.0f;
 
 float visc = 0.0f;
 float diff = 0.0f;
@@ -111,6 +111,9 @@ float *velocityY;
 float *densityPrev;
 float *velocityPrevX;
 float *velocityPrevY;
+
+glm::vec3 colorScale(0.1f, 0.08, 0.42f);
+bool pauseColors = false;
 
 int main()
 {
@@ -141,13 +144,12 @@ int main()
         glfwPollEvents();
         processInput();
 
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
+        GLint scalePos = glGetUniformLocation(shader->getProg(), "scale");
+        glUniform3f(scalePos, colorScale.x, colorScale.y, colorScale.z);  
 
         if (!pauseSim) {
             getFromUI(densityPrev, velocityPrevX, velocityPrevY);
+            // addForceAwayFromCenter(velocityPrevX, velocityPrevY);
             if (step) {
                 vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
                 dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);            
@@ -175,6 +177,7 @@ void createGrid() {
     float left = -1.0f, top = 1.0f;
     float x = left, y = top;
     
+    // create vertices
     for (int j = 0; j <= SIZE; j++) {
         x = left;
         for (int i = 0; i <= SIZE; i++) {
@@ -184,6 +187,7 @@ void createGrid() {
         y -= cellSize;
     }
 
+    // create indices
     int sizePlus1 = SIZE + 1;
     for (int j = 0; j < SIZE; j++) {
         for (int i = 0; i < SIZE; i++) {
@@ -239,10 +243,7 @@ void setDensity(float *density) {
         vertices[idx3].z = densityVal;
         vertices[idx4].z = densityVal;
 
-        data[at(i,j)].hasDensity = false;
         data[at(i,j)].density = 0.0f;
-
-        data[at(i,j)].hasVelocity = false;
         data[at(i,j)].velocity = glm::vec2(0.0f);
     END_FOR
 
@@ -290,7 +291,7 @@ void deleteDensityFromCell(glm::vec2 mousePos) {
     int x = cell.x;
     int y = cell.y;
 
-    int offset = 1;
+    int offset = 3;
     if (inBounds(mousePos + glm::vec2(offset)) && inBounds(mousePos - glm::vec2(offset))) {   
         for (int i = -offset; i < offset; i++) {
             for (int j = -offset; j < offset; j++) {
@@ -308,16 +309,35 @@ void addVelocityToCell(glm::vec2 newMousePos, glm::vec2 lastMousePos) {
     int index = at(cell.x, cell.y);
     
     glm::vec2 offset = newMousePos - lastMousePos;
-    offset *= 30;
-    
-    data[index].hasVelocity = true;
-    data[index].velocity = offset;  
+    data[index].velocity = force * offset;  
+}
+
+void addPointForce(glm::vec2 mousePos) {
+    glm::vec2 cell = getCell(mousePos);
+    int x = cell.x;
+    int y = cell.y;
+    int offset = 10;
+    float rad = 5;
+    if (inBounds(mousePos + glm::vec2(offset)) && inBounds(mousePos - glm::vec2(offset))) {   
+        for (int i = -offset; i <= offset; i++) {
+            for (int j = -offset; j <= offset; j++) {
+                if (x+i <= SIZE && j+y <= SIZE) {
+                    float pointForce = glm::distance(cell, glm::vec2(x+i,j+y));
+                    glm::vec2 vel = pointForce * (glm::vec2(x+i,j+y) - cell);
+                    int index = at(x+i,j+y);
+                    if (pointForce < rad)
+                        data[index].velocity = vel;
+                }
+            }    
+        }
+    }
 }
 
 
 bool keys[1024]; 
 bool firstMouse = true;
 bool mouseClicked = false;
+bool mouseDown = false;
 glm::vec2 currMousePos, oldMousePos;
 
 // Is called whenever a key is pressed/released via GLFW
@@ -350,22 +370,92 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
     if (state == GLFW_PRESS) {
         mouseClicked = true;
+        mouseDown = true;
     }
-    else {
-        mouseClicked = false;
+    else if (state == GLFW_RELEASE) {
+        mouseDown = false;
     }
 }
 
 void processInput() {
     if (inBounds(currMousePos) && inBounds(oldMousePos)) {
-        if (keys[GLFW_KEY_D]) {
+        // adds density
+        if (keys[GLFW_KEY_F]) {
             addDensityToCell(currMousePos);
         }
+        // adds velocity
         if (keys[GLFW_KEY_V]) {
             addVelocityToCell(currMousePos, oldMousePos);
         }
-        if (keys[GLFW_KEY_C]) {
+        // eraser
+        if (keys[GLFW_KEY_D]) {
             deleteDensityFromCell(currMousePos);
+        }
+        // draws bunny
+        if (keys[GLFW_KEY_B]) {
+            drawBunny(getCell(currMousePos + 50.0f), 2);
+        }
+        // pause
+        if (keys[GLFW_KEY_P]) {
+            pauseSim = !pauseSim;
+        }
+
+        // changes force
+        if (keys[GLFW_KEY_A]) {
+            if(keys[GLFW_KEY_LEFT_SHIFT]) {
+                force--;
+            }
+            else {
+                force++;
+            }
+            std::cout << "force: " << force << std::endl;
+        }
+
+        // changes r
+        if (keys[GLFW_KEY_Q]) {
+            if(keys[GLFW_KEY_LEFT_SHIFT]) {
+                colorScale.x -= 0.001f;
+            }
+            else {
+                colorScale.x += 0.001f;
+            }
+            printVec(colorScale, "colorScale");
+        }
+
+        // changes g
+        if (keys[GLFW_KEY_W]) {
+            if(keys[GLFW_KEY_LEFT_SHIFT]) {
+                colorScale.y -= 0.001f;
+            }
+            else {
+                colorScale.y += 0.001f;
+            }
+            printVec(colorScale, "colorScale");
+        }
+
+        // changes b
+        if (keys[GLFW_KEY_E]) {
+            if(keys[GLFW_KEY_LEFT_SHIFT]) {
+                colorScale.z -= 0.001f;
+            }
+            else {
+                colorScale.z += 0.001f;
+            }
+            printVec(colorScale, "colorScale");
+        }
+
+        // stops changing the colors
+        if (keys[GLFW_KEY_S]) {
+            if(keys[GLFW_KEY_LEFT_SHIFT]) {
+                pauseColors = false;
+            }
+            else {
+                pauseColors = true;
+            }
+        }
+
+        if (keys[GLFW_KEY_P]) {
+            addPointForce(currMousePos);
         }
     }
 }
@@ -376,9 +466,14 @@ bool inBounds(glm::vec2 mousePos) {
     return x <= WIDTH && x >=0 && y <= HEIGHT && y>=0;
 }
 
+bool inArrBounds(glm::vec2 index) {
+    int x = index.x;
+    int y = index.y;
+    return  x <= SIZE && x >=1 && y <= SIZE && y>=1; 
+}
 
 // OBJ
-void setBunny() {
+void drawBunny(glm::vec2 offset, float bunnySize) {
     const char *path = "../resources/bunny.obj";
 
     FILE * file = fopen(path, "r");
@@ -394,13 +489,23 @@ void setBunny() {
             break; // EOF = End Of File. Quit the loop.
 
         if ( strcmp( lineHeader, "v" ) == 0 ){
-            glm::vec3 vertex;
-            fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z );
-            vertex *= 20;
-            vertex += 5;
-            printVec(vertex, "vertex");
-            data[at((int)vertex.x, (int)vertex.y)].hasDensity = true;
-            data[at((int)vertex.x, (int)vertex.y)].density = 1.0f;
+            glm::vec2 vertex;
+            float random;
+            fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &random);
+            vertex.y *= -1;
+            vertex *= 100 * bunnySize;
+            vertex += offset;
+
+            if (inArrBounds(vertex)) {
+                for (int i = -2; i < 2; i++) {
+                    for (int j = -2; j < 2; j++) {
+                        glm::vec2 newIndex = glm::vec2(vertex.x+i, vertex.y+j);
+                        if (inArrBounds(newIndex)) {
+                            data[at((int)newIndex.x, (int)newIndex.y)].density = 10.0f;
+                        }
+                    }    
+                }
+            }
         }
         if ( strcmp( lineHeader, "vn" ) == 0 ){
             glm::vec3 normal;
@@ -633,4 +738,12 @@ void printVec(glm::vec3 toPrint, std::string vecName) {
     std::cout << toPrint.z << " ";
     std::cout << std::endl;
 }
+
+void printVec(glm::vec2 toPrint, std::string vecName) {
+    std::cout << vecName << ": ";
+    std::cout << toPrint.x << " ";
+    std::cout << toPrint.y << " ";
+    std::cout << std::endl;
+}
+
 

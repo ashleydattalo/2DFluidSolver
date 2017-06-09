@@ -4,6 +4,8 @@
 in vec3 densityColor;
 out vec4 color;
 
+uniform vec3 scale;
+
 void main()
 {
     
@@ -45,5 +47,8 @@ void main()
 
 
     //color = vec4(vec3(densityColor.z), 1.0f);
+
+
+    color = vec4(densityColor.z * scale.x, densityColor.z * scale.y, densityColor.z * scale.z, 1.0f);
 }
 
