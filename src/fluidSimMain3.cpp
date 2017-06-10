@@ -337,7 +337,6 @@ void addDensityToCell(glm::vec2 cell, float densityAmount) {
     int index = at(cell.x, cell.y);
     if (inArrBounds(cell)) {
         data[index].density = densityAmount;
-        data[index].randColorScale = randFloat(0, 0.9f);
     }
 }
 
