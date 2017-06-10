@@ -54,11 +54,14 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void processInput();
-bool inBounds(glm::vec2 mousePos);
+bool inScreenBounds(glm::vec2 mousePos);
 
 glm::vec2 getCell(glm::vec3 mousePos);
-void addDensityToCell(glm::vec2 mousePos);
+void addDensityToCell(glm::vec2 cell, float densityAmount);
 void addVelocityToCell(glm::vec2 newMousePos, glm::vec2 lastMousePos);
+void addSquareDensity(glm::vec2 mousePos);
+bool inScreenBounds(glm::vec2 mousePos);
+bool inArrBounds(glm::vec2 index);
 
 void createGrid();
 void getFromUI(float *densityPrev, float *velocityPrevX, float *velocityPrevY);
@@ -66,9 +69,15 @@ void setDensity(float *density);
 
 void initWindow();
 void bindBuffers();
-void drawBunny(glm::vec2 offset, float bunnySize);
+
+void createBunnyVertices();
+void drawBunny(glm::vec2 offset, float bunnySize, float densStrength);
+
 void printVec(glm::vec3 toPrint, std::string vecName);
 void printVec(glm::vec2 toPrint, std::string vecName);
+void debugMiniGrid(glm::vec2 cell, int offset, std::string name);
+
+void processColors();
 
 GLFWwindow* window;
 Shader *shader;
@@ -112,11 +121,21 @@ float *densityPrev;
 float *velocityPrevX;
 float *velocityPrevY;
 
-glm::vec3 colorScale(0.1f, 0.08, 0.42f);
-bool pauseColors = false;
+std::vector<glm::vec2> bunnyVerts;
+
+glm::vec3 densityColor(0.1f, 0.08, 0.42f);
+// glm::vec3 origColorScale(0.0008f, 0.001f, 0.002f);
+glm::vec3 origColorScale(0.0003f, 0.001f, 0.0008f);
+glm::vec3 colorScale = glm::vec3(origColorScale.x, origColorScale.y, -origColorScale.z);
+bool pauseColors = true;
+
+bool changeRed = true;
+bool changeGreen = false;
+bool changeBlue = true;
 
 int main()
 {
+    createBunnyVertices();
     //allocate data
     density = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
     velocityX = (float *) malloc(sizeof(float) * (SIZE + 2) * (SIZE + 2));
@@ -139,13 +158,23 @@ int main()
     // Uncommenting this call will result in wireframe polygons.
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+    float rCol = 0.0f;
+    float gCol = 0.0f;
+    float bCol = 0.0f;
+
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
     while (!glfwWindowShouldClose(window))
     {
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         glfwPollEvents();
         processInput();
 
+        processColors();
         GLint scalePos = glGetUniformLocation(shader->getProg(), "scale");
-        glUniform3f(scalePos, colorScale.x, colorScale.y, colorScale.z);  
+        glUniform3f(scalePos, densityColor.x, densityColor.y, densityColor.z);  
 
         if (!pauseSim) {
             getFromUI(densityPrev, velocityPrevX, velocityPrevY);
@@ -170,6 +199,45 @@ int main()
     glDeleteBuffers(1, &VBO);
     glfwTerminate();
     return 0;
+}
+
+void processColors() {
+        if (!pauseColors) {
+            if (changeRed) {
+                densityColor.x += colorScale.x;
+            }
+            if (changeGreen) {
+                densityColor.y += colorScale.y;
+            }
+            if (changeBlue) {
+                densityColor.z += colorScale.z;
+            }
+        }
+
+        // switches color dir if they hit 1 or 0
+        if (densityColor.x >= 0.2f) {
+            colorScale.x = -origColorScale.x;
+        }
+        if (densityColor.x <= 0.01f) {
+            colorScale.x = origColorScale.x;
+        }
+
+        if (densityColor.y >= 1.0f) {
+            colorScale.y = -origColorScale.y;
+        }
+        if (densityColor.y <= 0.01f) {
+            colorScale.y = origColorScale.y;
+        }
+
+        if (densityColor.z >= 1.0f) {
+            colorScale.z = -origColorScale.z;
+        }
+        if (densityColor.z <= 0.0f) {
+            colorScale.z = origColorScale.z;
+        }
+
+        printVec(densityColor, "densityColor");
+
 }
 
 void createGrid() {
@@ -265,43 +333,97 @@ glm::vec2 getCell(glm::vec2 mousePos) {
     return cell;
 }
 
-void addDensityToCell(glm::vec2 mousePos) {
-    glm::vec2 cell = getCell(mousePos);
+void addDensityToCell(glm::vec2 cell, float densityAmount) {
     int index = at(cell.x, cell.y);
-
-    int x = cell.x;
-    int y = cell.y;
-
-    if (x - 2 > 0 && x + 2 < WIDTH) {
-        if (y - 2 > 0 && y + 2 < HEIGHT) {
-            for (int i = -2; i < 2; i++) {
-                for (int j = -2; j < 2; j++) {
-                    index = at(x+i,j+y);
-                    data[index].density = densityStrength;
-                }    
-            }
-        }
+    if (inArrBounds(cell)) {
+        data[index].density = densityAmount;
+        data[index].randColorScale = randFloat(0, 0.9f);
     }
+}
+
+// void addSquareDensity(glm::vec2 mousePos) {
+//     printVec(mousePos, "mousePos");
+//     glm::vec2 cell = getCell(mousePos);
+//     int x = cell.x;
+//     int y = cell.y;
+
+//     int offset = 3;
+//     for (int i = -offset; i < offset; i++) {
+//         for (int j = -offset; j < offset; j++) {
+//             glm::vec2 newCell(x+i,j+y);
+//             addDensityToCell(newCell, densityStrength);
+//         }    
+//     }
+//     debugMiniGrid(cell, offset, "addSquareDensity");
+// }
+
+void addSquareDensity(glm::vec2 mousePos) {
+    glm::vec2 cell = getCell(mousePos);
+
+    int x = mousePos.x;
+    int y = mousePos.y;
+
+    int offset = 4;
+    bool foundAmt = false;
+    float amt = 100;
+    for (int i = -offset; i < offset; i++) {
+        for (int j = -offset; j < offset; j++) {
+            glm::vec2 newMousePos(x+i,j+y);
+            glm::vec2 newCell = getCell(newMousePos);
+
+            float dist = glm::sqrt((newMousePos.x-x)*(newMousePos.x-x) + (newMousePos.y-y)*(newMousePos.y-y));
+
+            if (inArrBounds(newMousePos) && !foundAmt) {
+                amt = dist;
+                foundAmt = true;
+            }
+            // float dens = glm::sin(dist) * 100;
+            // if (dist < 200 && dens > -100) {
+            if (dist < 7) {
+                addDensityToCell(newCell, amt-dist);
+            }
+        }    
+    }
+    // debugMiniGrid(cell, offset, "addDensity");
+}
+
+void addSineDensity(glm::vec2 mousePos) {
+    glm::vec2 cell = getCell(mousePos);
+
+    int x = mousePos.x;
+    int y = mousePos.y;
+
+    int offset = 300;
+    for (int i = -offset; i < offset; i++) {
+        for (int j = -offset; j < offset; j++) {
+            glm::vec2 newMousePos(x+i,j+y);
+            glm::vec2 newCell = getCell(newMousePos);
+
+            float dist = glm::sqrt((newMousePos.x-x)*(newMousePos.x-x) + (newMousePos.y-y)*(newMousePos.y-y));
+
+            float dens = glm::sin(dist) * 100;
+            if (dist < 200) {
+                addDensityToCell(newCell, dist);
+            }
+        }    
+    }
+    debugMiniGrid(cell, offset, "addDensity");
 }
 
 void deleteDensityFromCell(glm::vec2 mousePos) {
     glm::vec2 cell = getCell(mousePos);
-    int index = at(cell.x, cell.y);
 
     int x = cell.x;
     int y = cell.y;
 
-    int offset = 3;
-    if (inBounds(mousePos + glm::vec2(offset)) && inBounds(mousePos - glm::vec2(offset))) {   
-        for (int i = -offset; i < offset; i++) {
-            for (int j = -offset; j < offset; j++) {
-                if (x+i <= SIZE && j+y <= SIZE) {
-                    index = at(x+i,j+y);
-                    data[index].density -= densityStrength;
-                }
-            }    
-        }
+    int offset = 4;
+    for (int i = -offset; i < offset; i++) {
+        for (int j = -offset; j < offset; j++) {
+            glm::vec2 newCell(x+i,j+y);
+            addDensityToCell(cell, -densityStrength * 10);
+        }    
     }
+    // debugMiniGrid(cell, offset, "deleteDensityFromCell");
 }
 
 void addVelocityToCell(glm::vec2 newMousePos, glm::vec2 lastMousePos) {
@@ -318,7 +440,7 @@ void addPointForce(glm::vec2 mousePos) {
     int y = cell.y;
     int offset = 10;
     float rad = 5;
-    if (inBounds(mousePos + glm::vec2(offset)) && inBounds(mousePos - glm::vec2(offset))) {   
+    if (inScreenBounds(mousePos + glm::vec2(offset)) && inScreenBounds(mousePos - glm::vec2(offset))) {   
         for (int i = -offset; i <= offset; i++) {
             for (int j = -offset; j <= offset; j++) {
                 if (x+i <= SIZE && j+y <= SIZE) {
@@ -333,12 +455,44 @@ void addPointForce(glm::vec2 mousePos) {
     }
 }
 
+void addLineDensity(glm::vec2 firstClick, glm::vec2 currMousePos) {
+    int minX = glm::min(firstClick.x, currMousePos.x);
+    int maxX = glm::max(firstClick.x, currMousePos.x);
+
+    int minY = glm::min(firstClick.y, currMousePos.y);
+    int maxY = glm::max(firstClick.y, currMousePos.y);
+    for (int i = minX; i < maxX; i++) {
+        for (int j = minY; j < maxY; j++) {
+            glm::vec2 cell = getCell(glm::vec2(i, j));
+            addDensityToCell(cell, 50.0f);
+        }
+    }
+}
+
+void spawnBunnies() {
+    for (int i = 0; i < 500; i ++) {
+        drawBunny(glm::vec2(randFloat(0, 700), randFloat(0, 700)), randFloat(2, 5), densityStrength);
+    }
+}
+
+void spawnUglyBunnies() {
+    for (int i = 0; i < 200; i ++) {
+        drawBunny(glm::vec2(randFloat(0, 700), randFloat(0, 700)), randFloat(2, 5), -densityStrength);
+    }
+}
+
+void spawnGiantBunny(glm::vec2 mousePos) {
+    drawBunny(mousePos, 14, densityStrength);
+}
+
 
 bool keys[1024]; 
 bool firstMouse = true;
 bool mouseClicked = false;
+bool mouseReleased = false;
 bool mouseDown = false;
 glm::vec2 currMousePos, oldMousePos;
+glm::vec2 clickedPos;
 
 // Is called whenever a key is pressed/released via GLFW
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
@@ -371,17 +525,46 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     if (state == GLFW_PRESS) {
         mouseClicked = true;
         mouseDown = true;
+        clickedPos = currMousePos;
     }
     else if (state == GLFW_RELEASE) {
         mouseDown = false;
+        mouseReleased = true;
+        addLineDensity(clickedPos, currMousePos);
+    }
+    // if (mouseDown) {
+    //     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    // }
+}
+
+void scaleVal(int key, float *ptr, float scale, std::string varName) {
+    if (keys[key]) {
+        if(keys[GLFW_KEY_LEFT_SHIFT]) {
+            *ptr -= scale;
+        }
+        else {
+            *ptr += scale;
+        }
+        std::cout << varName << ": " << *ptr << std::endl;
+    }
+}
+void toggleVal(int key, bool *ptr, std::string varName) {
+    if (keys[key]) {
+        if(keys[GLFW_KEY_LEFT_SHIFT]) {
+            *ptr = true;
+        }
+        else {
+            *ptr = false;
+        }
+        std::cout << varName << ": " << *ptr << std::endl;
     }
 }
 
 void processInput() {
-    if (inBounds(currMousePos) && inBounds(oldMousePos)) {
+    if (inScreenBounds(currMousePos) && inScreenBounds(oldMousePos)) {
         // adds density
         if (keys[GLFW_KEY_F]) {
-            addDensityToCell(currMousePos);
+            addSquareDensity(currMousePos);
         }
         // adds velocity
         if (keys[GLFW_KEY_V]) {
@@ -392,75 +575,93 @@ void processInput() {
             deleteDensityFromCell(currMousePos);
         }
         // draws bunny
-        if (keys[GLFW_KEY_B]) {
-            drawBunny(getCell(currMousePos + 50.0f), 2);
+        if (keys[GLFW_KEY_B] | keys[GLFW_KEY_C]) {
+            drawBunny(getCell(currMousePos+40.0f), 5, 10);
+        }
+        if (keys[GLFW_KEY_X]) {
+            drawBunny(getCell(currMousePos+40.0f), 5, -10);
+        }
+        if (keys[GLFW_KEY_L]) {
+            spawnBunnies();
+        }
+        if (keys[GLFW_KEY_K]) {
+            spawnUglyBunnies();
         }
         // pause
-        if (keys[GLFW_KEY_P]) {
+        if (keys[GLFW_KEY_O]) {
             pauseSim = !pauseSim;
-        }
-
-        // changes force
-        if (keys[GLFW_KEY_A]) {
-            if(keys[GLFW_KEY_LEFT_SHIFT]) {
-                force--;
-            }
-            else {
-                force++;
-            }
-            std::cout << "force: " << force << std::endl;
-        }
-
-        // changes r
-        if (keys[GLFW_KEY_Q]) {
-            if(keys[GLFW_KEY_LEFT_SHIFT]) {
-                colorScale.x -= 0.001f;
-            }
-            else {
-                colorScale.x += 0.001f;
-            }
-            printVec(colorScale, "colorScale");
-        }
-
-        // changes g
-        if (keys[GLFW_KEY_W]) {
-            if(keys[GLFW_KEY_LEFT_SHIFT]) {
-                colorScale.y -= 0.001f;
-            }
-            else {
-                colorScale.y += 0.001f;
-            }
-            printVec(colorScale, "colorScale");
-        }
-
-        // changes b
-        if (keys[GLFW_KEY_E]) {
-            if(keys[GLFW_KEY_LEFT_SHIFT]) {
-                colorScale.z -= 0.001f;
-            }
-            else {
-                colorScale.z += 0.001f;
-            }
-            printVec(colorScale, "colorScale");
-        }
-
-        // stops changing the colors
-        if (keys[GLFW_KEY_S]) {
-            if(keys[GLFW_KEY_LEFT_SHIFT]) {
-                pauseColors = false;
-            }
-            else {
-                pauseColors = true;
-            }
         }
 
         if (keys[GLFW_KEY_P]) {
             addPointForce(currMousePos);
         }
+
+        scaleVal(GLFW_KEY_A, &force, 1.0f, "force");
+        
+        scaleVal(GLFW_KEY_R, &densityColor.x, 0.001f, "densityColor.x");
+        scaleVal(GLFW_KEY_T, &densityColor.y, 0.001f, "densityColor.y");
+        scaleVal(GLFW_KEY_Y, &densityColor.z, 0.001f, "densityColor.z");
+      
+        toggleVal(GLFW_KEY_S, &pauseColors, "pauseColors");
+
+
+        if (keys[GLFW_KEY_1]) {
+            changeRed = !changeRed;
+        }
+        if (keys[GLFW_KEY_2]) {
+            changeGreen = !changeGreen;
+        }
+        if (keys[GLFW_KEY_3]) {
+            changeBlue = !changeBlue;
+        }
+
+        if (keys[GLFW_KEY_Q]) {
+            if (keys[GLFW_KEY_LEFT_SHIFT]) {
+                colorScale.x = -origColorScale.x;
+            }
+            else {
+                colorScale.x = origColorScale.x;   
+            }
+        }
+        if (keys[GLFW_KEY_W]) {
+            if (keys[GLFW_KEY_LEFT_SHIFT]) {
+                colorScale.y = -origColorScale.y;
+            }
+            else {
+                colorScale.y = origColorScale.y;   
+            }
+        }
+        if (keys[GLFW_KEY_E]) {
+            if (keys[GLFW_KEY_LEFT_SHIFT]) {
+                colorScale.z = -origColorScale.z;
+            }
+            else {
+                colorScale.z = origColorScale.z;   
+            }
+        }
+
+
+
+        if (keys[GLFW_KEY_G]) {
+            drawBunny(getCell(currMousePos + 70.0f), 14, -densityStrength);
+        }
+        if (keys[GLFW_KEY_H]) {
+            spawnGiantBunny(getCell(currMousePos + 70.0f));
+        }
+
+        if (keys[GLFW_KEY_Z]) {
+            if (keys[GLFW_KEY_LEFT_SHIFT]) {
+                visc = 0.0f;
+            }
+            else {
+                visc += 0.0001f;
+            }
+            std::cout << "visc: " << visc << std::endl;
+        }
     }
 }
 
-bool inBounds(glm::vec2 mousePos) {
+bool inScreenBounds(glm::vec2 mousePos) {
     int x = mousePos.x;
     int y = mousePos.y;
     return x <= WIDTH && x >=0 && y <= HEIGHT && y>=0;
@@ -472,8 +673,30 @@ bool inArrBounds(glm::vec2 index) {
     return  x <= SIZE && x >=1 && y <= SIZE && y>=1; 
 }
 
-// OBJ
-void drawBunny(glm::vec2 offset, float bunnySize) {
+void debugMiniGrid(glm::vec2 cell, int offset, std::string name) {
+    std::cout << name << ":" << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    int x = cell.x;
+    int y = cell.y;
+    for (int i = -offset; i < offset; i++) {
+        for (int j = -offset; j < offset; j++) {
+            if (inArrBounds(cell)) {
+                int index = at(cell.x, cell.y);
+                if (x+i == x && y+j == y) {
+                    std::cout << "~" << data[index].density << "~ ";
+                }
+                else {
+                    std::cout << data[index].density << " ";
+                }
+            }
+        }
+        std::cout << std::endl;
+    }
+}
+
+void createBunnyVertices() {
     const char *path = "../resources/bunny.obj";
 
     FILE * file = fopen(path, "r");
@@ -492,24 +715,27 @@ void drawBunny(glm::vec2 offset, float bunnySize) {
             glm::vec2 vertex;
             float random;
             fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &random);
-            vertex.y *= -1;
-            vertex *= 100 * bunnySize;
-            vertex += offset;
-
-            if (inArrBounds(vertex)) {
-                for (int i = -2; i < 2; i++) {
-                    for (int j = -2; j < 2; j++) {
-                        glm::vec2 newIndex = glm::vec2(vertex.x+i, vertex.y+j);
-                        if (inArrBounds(newIndex)) {
-                            data[at((int)newIndex.x, (int)newIndex.y)].density = 10.0f;
-                        }
-                    }    
-                }
-            }
+            bunnyVerts.push_back(vertex);
         }
         if ( strcmp( lineHeader, "vn" ) == 0 ){
             glm::vec3 normal;
             fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z );
+        }
+    }
+}
+
+void drawBunny(glm::vec2 offset, float bunnySize, float densStrength) {
+    for (glm::vec2 vertex : bunnyVerts) {
+        vertex.y *= -1;
+        vertex *= 100 * bunnySize;
+        glm::vec2 idx = getCell(glm::vec2(vertex.x, vertex.y));
+        idx += offset;
+        addDensityToCell(idx, densStrength);
+
+        for (int i = -2; i < 2; i++) {
+            for (int j = -2; j < 2; j++) {
+                glm::vec2 newIndex = glm::vec2(vertex.x+i, vertex.y+j);
+            }    
         }
     }
 }
@@ -707,7 +933,7 @@ void initWindow() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    window = glfwCreateWindow(WIDTH, HEIGHT, "LearnOpenGL", nullptr, nullptr);    
+    window = glfwCreateWindow(WIDTH, HEIGHT, "Final Project", nullptr, nullptr);    
     if (window == nullptr)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
