@@ -107,8 +107,8 @@ IndicesStruct indicesArr[SIZE][SIZE];
 
 bool step = true;
 bool pauseSim = false;
-float densityStrength = 100.0f;
-float force = 10.0f;
+float densityStrength = 10.0f;
+float force = 1.0f;
 
 float visc = 0.0f;
 float diff = 0.0f;
@@ -127,11 +127,17 @@ glm::vec3 densityColor(0.1f, 0.08, 0.42f);
 // glm::vec3 origColorScale(0.0008f, 0.001f, 0.002f);
 glm::vec3 origColorScale(0.0003f, 0.001f, 0.0008f);
 glm::vec3 colorScale = glm::vec3(origColorScale.x, origColorScale.y, -origColorScale.z);
-bool pauseColors = true;
+bool pauseColors = false;
 
 bool changeRed = true;
 bool changeGreen = false;
 bool changeBlue = true;
+
+float bunnyStrength = 5.0f;
+
+// int loopCount = 0.0;
+GLfloat deltaTime = 0.0f;
+GLfloat lastFrame = 0.0f;
 
 int main()
 {
@@ -164,8 +170,42 @@ int main()
 
     // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
+    
+    // vel_step(SIZE, velocityX, velocityY, velocityPrevX, velocityPrevY, visc, dt);
+    // dens_step(SIZE, density, densityPrev, velocityX, velocityY, diff, dt);            
+    // std::cout << loopCount << std::endl;
+
+    double lastTime = glfwGetTime();
+    int nbFrames = 0;
     while (!glfwWindowShouldClose(window))
     {
+        // Calculate deltatime of current frame
+        GLfloat currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+
+
+        double currentTime = glfwGetTime();
+        nbFrames++;
+        if ( currentTime - lastTime >= 1.0 ){ // If last prinf() was more than 1 sec ago
+            // printf and reset timer
+            // printf("%f ms/frame\n", 1000.0/double(nbFrames));
+            // printf("\n");
+            // printf("frames per sec: %f\n", double(nbFrames));
+            glfwSetWindowTitle(window,
+                (std::string("Grid Size: ") 
+                    + std::string(std::to_string(SIZE))
+                    + std::string("x")
+                    + std::string(std::to_string(SIZE))
+                    + std::string(" , Frame Rate: ")
+                    + std::to_string(1.0f / deltaTime).substr(0, 4) + std::string(" fps)")).c_str());
+            nbFrames = 0;
+            lastTime += 1.0;
+            // printf("sec to render frame: %f\n", double(deltaTime));
+        }
+
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -236,7 +276,7 @@ void processColors() {
             colorScale.z = origColorScale.z;
         }
 
-        printVec(densityColor, "densityColor");
+        // printVec(densityColor, "densityColor");
 
 }
 
@@ -245,11 +285,13 @@ void createGrid() {
     float left = -1.0f, top = 1.0f;
     float x = left, y = top;
     
+    Rainbow rainbow(0, SIZE);
+
     // create vertices
     for (int j = 0; j <= SIZE; j++) {
         x = left;
         for (int i = 0; i <= SIZE; i++) {
-            vertices.push_back(glm::vec3(x, y, 1.0f));
+            vertices.push_back(glm::vec4(x, y, 1.0f, j*1.0f/SIZE));
             x += cellSize;
         }
         y -= cellSize;
@@ -362,7 +404,7 @@ void addSquareDensity(glm::vec2 mousePos) {
     int x = mousePos.x;
     int y = mousePos.y;
 
-    int offset = 4;
+    int offset = 10;
     bool foundAmt = false;
     float amt = 100;
     for (int i = -offset; i < offset; i++) {
@@ -378,7 +420,7 @@ void addSquareDensity(glm::vec2 mousePos) {
             }
             // float dens = glm::sin(dist) * 100;
             // if (dist < 200 && dens > -100) {
-            if (dist < 7) {
+            if (dist < 8) {
                 addDensityToCell(newCell, amt-dist);
             }
         }    
@@ -430,7 +472,9 @@ void addVelocityToCell(glm::vec2 newMousePos, glm::vec2 lastMousePos) {
     int index = at(cell.x, cell.y);
     
     glm::vec2 offset = newMousePos - lastMousePos;
-    data[index].velocity = force * offset;  
+    if (inArrBounds(cell) && inScreenBounds(newMousePos)) {
+        data[index].velocity = force * offset;  
+    }
 }
 
 void addPointForce(glm::vec2 mousePos) {
@@ -470,18 +514,18 @@ void addLineDensity(glm::vec2 firstClick, glm::vec2 currMousePos) {
 
 void spawnBunnies() {
     for (int i = 0; i < 500; i ++) {
-        drawBunny(glm::vec2(randFloat(0, 700), randFloat(0, 700)), randFloat(2, 5), densityStrength);
+        drawBunny(glm::vec2(randFloat(0, 700), randFloat(0, 700)), randFloat(2, 5), bunnyStrength);
     }
 }
 
 void spawnUglyBunnies() {
     for (int i = 0; i < 200; i ++) {
-        drawBunny(glm::vec2(randFloat(0, 700), randFloat(0, 700)), randFloat(2, 5), -densityStrength);
+        drawBunny(glm::vec2(randFloat(0, 700), randFloat(0, 700)), randFloat(2, 5), -bunnyStrength);
     }
 }
 
 void spawnGiantBunny(glm::vec2 mousePos) {
-    drawBunny(mousePos, 14, densityStrength);
+    drawBunny(mousePos, 30, bunnyStrength);
 }
 
 
@@ -516,6 +560,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
     oldMousePos = currMousePos;
     currMousePos.x = xpos;
     currMousePos.y = ypos;
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 } 
 
 // called when ever the mouse is clicked
@@ -525,6 +570,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         mouseClicked = true;
         mouseDown = true;
         clickedPos = currMousePos;
+        // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
     else if (state == GLFW_RELEASE) {
         mouseDown = false;
@@ -558,6 +604,17 @@ void toggleVal(int key, bool *ptr, std::string varName) {
         std::cout << varName << ": " << *ptr << std::endl;
     }
 }
+void toggleSim(int key, bool *ptr, std::string varName) {
+    if (keys[key]) {
+        if(keys[GLFW_KEY_LEFT_SHIFT]) {
+            *ptr = false;
+        }
+        else {
+            *ptr = true;
+        }
+        std::cout << varName << ": " << *ptr << std::endl;
+    }
+}
 
 void processInput() {
     if (inScreenBounds(currMousePos) && inScreenBounds(oldMousePos)) {
@@ -573,34 +630,64 @@ void processInput() {
         if (keys[GLFW_KEY_D]) {
             deleteDensityFromCell(currMousePos);
         }
-        // draws bunny
-        if (keys[GLFW_KEY_B] | keys[GLFW_KEY_C]) {
-            drawBunny(getCell(currMousePos+40.0f), 5, 10);
+
+        // draws pos bunny
+        if (keys[GLFW_KEY_C]) {
+            drawBunny(getCell(currMousePos+40.0f), 5, bunnyStrength);
         }
+        // draws neg bunny
         if (keys[GLFW_KEY_X]) {
-            drawBunny(getCell(currMousePos+40.0f), 5, -10);
+            drawBunny(getCell(currMousePos+40.0f), 5, -bunnyStrength);
         }
+
+        // spawns multiple pos bunny
         if (keys[GLFW_KEY_L]) {
             spawnBunnies();
         }
+        // spawns multiple neg bunny
         if (keys[GLFW_KEY_K]) {
             spawnUglyBunnies();
         }
-        // pause
-        if (keys[GLFW_KEY_O]) {
-            pauseSim = !pauseSim;
+        // draws large pos bunny
+        if (keys[GLFW_KEY_H]) {
+            spawnGiantBunny(getCell(currMousePos + 70.0f));
+        }
+        // draws large neg bunny
+        if (keys[GLFW_KEY_G]) {
+            drawBunny(getCell(currMousePos + 70.0f), 14, -bunnyStrength);
         }
 
+        // pause sim
+        toggleSim(GLFW_KEY_O, &pauseSim, "pauseSim");
+        // pause step
+        toggleVal(GLFW_KEY_I, &step, "step");
+
+        // add's point force
         if (keys[GLFW_KEY_P]) {
             addPointForce(currMousePos);
         }
 
+        // scales force
         scaleVal(GLFW_KEY_A, &force, 1.0f, "force");
+        scaleVal(GLFW_KEY_Z, &dt, 0.01f, "dt");
+
+        //changes visc
+        if (keys[GLFW_KEY_B]) {
+            if (keys[GLFW_KEY_LEFT_SHIFT]) {
+                visc = 0.0f;
+            }
+            else {
+                visc += 0.0001f;
+            }
+            std::cout << "visc: " << visc << std::endl;
+        }
         
+        // changes rbg
         scaleVal(GLFW_KEY_R, &densityColor.x, 0.001f, "densityColor.x");
         scaleVal(GLFW_KEY_T, &densityColor.y, 0.001f, "densityColor.y");
         scaleVal(GLFW_KEY_Y, &densityColor.z, 0.001f, "densityColor.z");
       
+        // pauses colors
         toggleVal(GLFW_KEY_S, &pauseColors, "pauseColors");
 
 
@@ -637,25 +724,6 @@ void processInput() {
             else {
                 colorScale.z = origColorScale.z;   
             }
-        }
-
-
-
-        if (keys[GLFW_KEY_G]) {
-            drawBunny(getCell(currMousePos + 70.0f), 14, -densityStrength);
-        }
-        if (keys[GLFW_KEY_H]) {
-            spawnGiantBunny(getCell(currMousePos + 70.0f));
-        }
-
-        if (keys[GLFW_KEY_Z]) {
-            if (keys[GLFW_KEY_LEFT_SHIFT]) {
-                visc = 0.0f;
-            }
-            else {
-                visc += 0.0001f;
-            }
-            std::cout << "visc: " << visc << std::endl;
         }
     }
 }
@@ -697,6 +765,14 @@ void debugMiniGrid(glm::vec2 cell, int offset, std::string name) {
 
 void createBunnyVertices() {
     const char *path = "../resources/bunny.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/voyager.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/superman.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/NewTieFighter.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/UFO.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/newE-wing.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/spaceShip.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/sphere.obj";
+    // const char *path = "/Users/ashleydattalo/graphics/471/THE_FINAL_AUG_11_2016/finalPro/finalProject/resources/square.obj";
 
     FILE * file = fopen(path, "r");
     if( file == NULL ){
@@ -726,16 +802,17 @@ void createBunnyVertices() {
 void drawBunny(glm::vec2 offset, float bunnySize, float densStrength) {
     for (glm::vec2 vertex : bunnyVerts) {
         vertex.y *= -1;
-        vertex *= 100 * bunnySize;
+        vertex *= 100 *bunnySize;
         glm::vec2 idx = getCell(glm::vec2(vertex.x, vertex.y));
         idx += offset;
         addDensityToCell(idx, densStrength);
 
-        for (int i = -2; i < 2; i++) {
-            for (int j = -2; j < 2; j++) {
-                glm::vec2 newIndex = glm::vec2(vertex.x+i, vertex.y+j);
-            }    
-        }
+        // for (int i = -2; i < 2; i++) {
+            // for (int j = -2; j < 2; j++) {
+                // glm::vec2 newIndex = glm::vec2(vertex.x+i, vertex.y+j);
+                glm::vec2 newIndex = glm::vec2(vertex.x, vertex.y);
+            // }    
+        // }
     }
 }
 
@@ -753,96 +830,6 @@ void resetDensity() {
             data[at(i,j)].density = 0.0f;
         }        
     }
-}
-
-
-
-// SOLVER STUFF
-
-void add_source(int N, float *x, float *s, float dt)
-{
-int i, size=(N+2)*(N+2);
-for ( i=0 ; i<size ; i++ ) x[i] += dt*s[i];
-}
-
-void set_bnd(int N, int b, float *x)
-{
-int i;
-for ( i=1 ; i<=N ; i++ ) {
-x[IX(0 ,i)] = b==1 ? -x[IX(1,i)] : x[IX(1,i)];
-x[IX(N+1,i)] = b==1 ? -x[IX(N,i)] : x[IX(N,i)];
-x[IX(i,0 )] = b==2 ? -x[IX(i,1)] : x[IX(i,1)];
-x[IX(i,N+1)] = b==2 ? -x[IX(i,N)] : x[IX(i,N)];
-}
-x[IX(0 ,0 )] = 0.5f*(x[IX(1,0 )]+x[IX(0 ,1)]);
-x[IX(0 ,N+1)] = 0.5f*(x[IX(1,N+1)]+x[IX(0 ,N)]);
-x[IX(N+1,0 )] = 0.5f*(x[IX(N,0 )]+x[IX(N+1,1)]);
-x[IX(N+1,N+1)] = 0.5f*(x[IX(N,N+1)]+x[IX(N+1,N)]);
-}
-void lin_solve(int N, int b, float *x, float *x0,
-float a, float c)
-{
-int i, j, n;
-for ( n=0 ; n<20 ; n++ ) {
-FOR_EACH_CELL
-x[IX(i,j)] = (x0[IX(i,j)]+a*(x[IX(i-1,j)]+
-x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))/c;
-END_FOR
-set_bnd ( N, b, x );
-}
-}
-void diffuse(int N, int b, float *x, float *x0,
-float diff, float dt)
-{
-float a=dt*diff*N*N;
-lin_solve ( N, b, x, x0, a, 1+4*a );
-}
-
-void advect(int N, int b, float *d, float *d0, float *u, float *v, float dt)
-{
-int i, j, i0, j0, i1, j1;
-float x, y, s0, t0, s1, t1, dt0;
-dt0 = dt*N;
-FOR_EACH_CELL
-x = i-dt0*u[IX(i,j)]; y = j-dt0*v[IX(i,j)];
-if (x<0.5f) x=0.5f; if (x>N+0.5f) x=N+0.5f; i0=(int)x; i1=i0+1;
-if (y<0.5f) y=0.5f; if (y>N+0.5f) y=N+0.5f; j0=(int)y; j1=j0+1;
-s1 = x-i0; s0 = 1-s1; t1 = y-j0; t0 = 1-t1;
-d[IX(i,j)] = s0*(t0*d0[IX(i0,j0)]+t1*d0[IX(i0,j1)])+
-s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
-END_FOR
-set_bnd ( N, b, d );
-}
-void project(int N, float * u, float * v, float * p, float * div)
-{
-int i, j;
-FOR_EACH_CELL
-div[IX(i,j)] = -0.5f*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)])/N;
-p[IX(i,j)] = 0;
-END_FOR
-set_bnd ( N, 0, div ); set_bnd ( N, 0, p );
-lin_solve ( N, 0, p, div, 1, 4 );
-FOR_EACH_CELL
-u[IX(i,j)] -= 0.5f*N*(p[IX(i+1,j)]-p[IX(i-1,j)]);
-v[IX(i,j)] -= 0.5f*N*(p[IX(i,j+1)]-p[IX(i,j-1)]);
-END_FOR
-set_bnd ( N, 1, u ); set_bnd ( N, 2, v );
-}
-void dens_step(int N, float *x, float *x0, float *u, float *v, float diff, float dt)
-{
-add_source ( N, x, x0, dt );
-SWAP ( x0, x ); diffuse ( N, 0, x, x0, diff, dt );
-SWAP ( x0, x ); advect ( N, 0, x, x0, u, v, dt );
-}
-void vel_step(int N, float *u, float *v, float *u0, float *v0, float visc, float dt)
-{
-add_source ( N, u, u0, dt ); add_source ( N, v, v0, dt );
-SWAP ( u0, u ); diffuse ( N, 1, u, u0, visc, dt );
-SWAP ( v0, v ); diffuse ( N, 2, v, v0, visc, dt );
-project ( N, u, v, u0, v0 );
-SWAP ( u0, u ); SWAP ( v0, v );
-advect ( N, 1, u, u0, u0, v0, dt ); advect ( N, 2, v, v0, u0, v0, dt );
-project ( N, u, v, u0, v0 );
 }
 
 // //adding sources to scene
@@ -971,4 +958,106 @@ void printVec(glm::vec2 toPrint, std::string vecName) {
     std::cout << std::endl;
 }
 
+// Solver
+void set_bnd ( int N, int b, float * x ) {
+    int i;
+    for ( i=1 ; i<=N ; i++ ) {
+        x[IX(0 ,i)] = b==1 ? -x[IX(1,i)] : x[IX(1,i)]; 
+        x[IX(N+1,i)] = b==1 ? -x[IX(N,i)] : x[IX(N,i)];
+        x[IX(i,0 )] = b==2 ? -x[IX(i,1)] : x[IX(i,1)];
+        x[IX(i,N+1)] = b==2 ? -x[IX(i,N)] : x[IX(i,N)]; 
+    }
+    x[IX(0 ,0 )] = 0.5*(x[IX(1,0 )]+x[IX(0 ,1)]); 
+    x[IX(0 ,N+1)] = 0.5*(x[IX(1,N+1)]+x[IX(0 ,N )]); 
+    x[IX(N+1,0 )] = 0.5*(x[IX(N,0 )]+x[IX(N+1,1)]); 
+    x[IX(N+1,N+1)] = 0.5*(x[IX(N,N+1)]+x[IX(N+1,N)]);
+}
 
+void add_source ( int N, float * x, float * s, float dt ) {
+    int i, size = (N+2)*(N+2);
+    for ( i=0 ; i<size ; i++ ) x[i] += dt*s[i]; 
+}
+
+void diffuse ( int N, int b, float * x, float * x0, float diff, float dt ) {
+    int i, j, k;
+    float a=dt*diff*N*N;
+    for ( k=0 ; k<80 ; k++ ) {
+        for ( i=1 ; i<=N ; i++ ) {
+            for ( j=1 ; j<=N ; j++ ) {
+                x[IX(i,j)] = (x0[IX(i,j)] + a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))/(1+50*a);
+            }
+        }
+        set_bnd ( N, b, x );
+    }
+}
+
+void advect ( int N, int b, float * d, float * d0, float * u, float * v, float dt ) {
+    int i, j, i0, j0, i1, j1;
+    float x, y, s0, t0, s1, t1, dt0;
+    dt0 = dt*N;
+    for ( i=1 ; i<=N ; i++ ) {
+        for ( j=1 ; j<=N ; j++ ) {
+            x = i-dt0*u[IX(i,j)]; y = j-dt0*v[IX(i,j)];
+            if (x<0.5) x=0.5; 
+            if (x>N+0.5) x=N+0.5; 
+            i0=(int)x;
+            i1=i0+1; 
+            if (y<0.5) y=0.5; 
+            if (y>N+0.5) y=N+0.5; 
+            j0=(int)y; j1=j0+1; 
+            s1 = x-i0; s0 = 1-s1; 
+            t1 = y-j0; t0 = 1-t1;
+            d[IX(i,j)] = s0*(t0*d0[IX(i0,j0)]+t1*d0[IX(i0,j1)])+s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
+        } 
+    }
+    set_bnd ( N, b, d ); 
+}
+
+void project ( int N, float * u, float * v, float * p, float * div ) {
+    int i, j, k;
+    float h;
+    h = 1.0/N;
+    for ( i=1 ; i<=N ; i++ ) {
+        for ( j=1 ; j<=N ; j++ ) {
+            div[IX(i,j)] = -0.5*h*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)]); 
+            p[IX(i,j)] = 0;
+        }
+    }
+    set_bnd ( N, 0, div ); 
+    set_bnd ( N, 0, p );
+
+    for ( k=0 ; k<80 ; k++ ) {
+        for ( i=1 ; i<=N ; i++ ) {
+            for ( j=1 ; j<=N ; j++ ) {
+                p[IX(i,j)] = (div[IX(i,j)]+p[IX(i-1,j)]+p[IX(i+1,j)]+p[IX(i,j-1)]+p[IX(i,j+1)])/4 ;
+            } 
+        }
+        set_bnd ( N, 0, p ); 
+    }
+
+    for ( i=1 ; i<=N ; i++ ) {
+        for ( j=1 ; j<=N ; j++ ) {
+            u[IX(i,j)] -= 0.5*(p[IX(i+1,j)]-p[IX(i-1,j)])/h;
+            v[IX(i,j)] -= 0.5*(p[IX(i,j+1)]-p[IX(i,j-1)])/h;
+        }
+    }
+    set_bnd ( N, 1, u ); set_bnd ( N, 2, v ); 
+}
+
+void dens_step ( int N, float * x, float * x0, float * u, float * v, float diff, float dt ) {
+    add_source ( N, x, x0, dt );
+    SWAP ( x0, x ); diffuse ( N, 0, x, x0, diff, dt ); 
+    SWAP ( x0, x ); advect ( N, 0, x, x0, u, v, dt );
+}
+
+
+void vel_step ( int N, float * u, float * v, float * u0, float * v0, float visc, float dt ) {
+    add_source ( N, u, u0, dt ); add_source ( N, v, v0, dt );
+    SWAP ( u0, u ); diffuse ( N, 1, u, u0, visc, dt );
+    SWAP ( v0, v ); diffuse ( N, 2, v, v0, visc, dt );
+    project ( N, u, v, u0, v0 );
+    SWAP ( u0, u ); SWAP ( v0, v );
+    advect ( N, 1, u, u0, u0, v0, dt );
+    advect ( N, 2, v, v0, u0, v0, dt );
+    project ( N, u, v, u0, v0 );
+}
